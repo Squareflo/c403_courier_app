@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
@@ -11,6 +12,9 @@ import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 
+// Notification sound for exclusive offers (hosted on Cloudinary)
+const EXCLUSIVE_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/upload/v1772027556/567206__sergequadrado__announcement-sound-2_pyfkfq.wav';
+
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
  *
@@ -19,6 +23,9 @@ import { supabase } from '../lib/supabase';
  * is forced with no way to dismiss — accept, reject, or expiry only.
  * This check runs on mount and via realtime subscription, so it persists
  * even across app restarts.
+ *
+ * A notification sound plays when the exclusive offer appears, mixed with
+ * any background audio from other apps (does not pause their music).
  */
 export function MainLayout() {
   const { colors } = useTheme();
@@ -41,6 +48,63 @@ export function MainLayout() {
     deliveryRequestId: string;
     offerId: string;
   } | null>(null);
+
+  // Sound ref to allow cleanup
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  // ── Play exclusive offer notification sound ─────────────────────────────
+
+  const playExclusiveOfferSound = useCallback(async () => {
+    try {
+      // Configure audio to mix with other apps (don't pause their music)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Unload any previous sound
+      if (soundRef.current) {
+        try {
+          await soundRef.current.unloadAsync();
+        } catch {}
+        soundRef.current = null;
+      }
+
+      // Load and play the notification sound
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: EXCLUSIVE_OFFER_SOUND_URL },
+        { shouldPlay: true, volume: 1.0 },
+      );
+      soundRef.current = sound;
+
+      // Auto-cleanup when done playing
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          if (soundRef.current === sound) {
+            soundRef.current = null;
+          }
+        }
+      });
+
+      console.log('[MainLayout] Playing exclusive offer notification sound');
+    } catch (err) {
+      console.warn('[MainLayout] Could not play exclusive offer sound:', err);
+    }
+  }, []);
+
+  // Cleanup sound on unmount
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Check for pending exclusive offers ──────────────────────────────────
 
@@ -77,9 +141,15 @@ export function MainLayout() {
         }
 
         console.log('[MainLayout] Found pending exclusive offer:', offer.id);
-        setForcedExclusiveOffer({
-          deliveryRequestId: offer.delivery_request_id,
-          offerId: offer.id,
+        setForcedExclusiveOffer((prev) => {
+          // Only play sound if this is a NEW exclusive offer (not the same one)
+          if (!prev || prev.offerId !== offer.id) {
+            playExclusiveOfferSound();
+          }
+          return {
+            deliveryRequestId: offer.delivery_request_id,
+            offerId: offer.id,
+          };
         });
       } else {
         setForcedExclusiveOffer(null);
@@ -87,7 +157,7 @@ export function MainLayout() {
     } catch (err) {
       console.error('[MainLayout] Error checking exclusive offers:', err);
     }
-  }, [courier?.id]);
+  }, [courier?.id, playExclusiveOfferSound]);
 
   // Check on mount and when courier changes
   useEffect(() => {
@@ -118,6 +188,7 @@ export function MainLayout() {
             payload.new.status === 'pending'
           ) {
             console.log('[MainLayout] New exclusive offer detected — forcing screen');
+            playExclusiveOfferSound();
             setForcedExclusiveOffer({
               deliveryRequestId: payload.new.delivery_request_id,
               offerId: payload.new.id,
@@ -144,7 +215,7 @@ export function MainLayout() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [courier?.id]);
+  }, [courier?.id, playExclusiveOfferSound]);
 
   // ── Tab navigation ──────────────────────────────────────────────────────
 
