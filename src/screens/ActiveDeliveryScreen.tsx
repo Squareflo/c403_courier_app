@@ -936,82 +936,80 @@ export function ActiveDeliveryScreen({
         {/* ═══ STATUS: arrived_at_pickup ═══ */}
         {isAtPickup ? (
           <>
-            {/* —— Customer card + Ready In row —— */}
-            <View style={styles.twoColRow}>
-              {/* Customer card */}
-              <TouchableOpacity
-                onPress={() => { tapFeedback(); handleCallCustomer(); }}
-                activeOpacity={0.7}
-                style={[styles.customerCard, { backgroundColor: cardBg }]}
-              >
-                <View style={styles.customerCardInner}>
-                  {customerPhoto ? (
-                    <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
-                  ) : (
-                    <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
-                      <Text style={styles.customerPhotoInitial}>
-                        {customerName[0]?.toUpperCase() || '?'}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.customerInfo}>
-                    <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
-                    <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
-                      {customerName}
-                    </Text>
-                  </View>
-                  <Phone size={24} color={textColor} />
+            {/* —— Customer card (full width, photo wraps left/top/bottom edge) —— */}
+            <TouchableOpacity
+              onPress={() => { tapFeedback(); handleCallCustomer(); }}
+              activeOpacity={0.7}
+              style={[styles.customerCard, { backgroundColor: cardBg }]}
+            >
+              {customerPhoto ? (
+                <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
+              ) : (
+                <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
+                  <Text style={styles.customerPhotoInitial}>
+                    {customerName[0]?.toUpperCase() || '?'}
+                  </Text>
                 </View>
-              </TouchableOpacity>
+              )}
+              <View style={styles.customerInfo}>
+                <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
+                <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
+                  {customerName}
+                </Text>
+              </View>
+              <View style={styles.customerPhoneIcon}>
+                <Phone size={24} color={textColor} />
+              </View>
+            </TouchableOpacity>
 
-              {/* Ready In + RECEIVED */}
-              <View style={[styles.readyInCard, { backgroundColor: cardBg }]}>
-                <Text style={[styles.cardLabel, { color: textSecColor }]}>Ready In</Text>
-                <View style={styles.readyInRow}>
+            {/* —— Ready In + RECEIVED (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>Ready In</Text>
                   <Text style={[styles.cardBigValue, { color: textColor }]}>
                     {minutesUntilPickup !== null ? `${minutesUntilPickup}Min` : '—'}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.receivedButton}
-                    onPress={() => { tapFeedback(); handleReceivedOrder(); }}
-                    disabled={updatingStatus}
-                    activeOpacity={0.7}
-                  >
-                    {updatingStatus ? (
-                      <ActivityIndicator size="small" color="#000" />
-                    ) : (
-                      <Text style={styles.receivedButtonText}>RECEIVED</Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                  style={styles.receivedButton}
+                  onPress={() => { tapFeedback(); handleReceivedOrder(); }}
+                  disabled={updatingStatus}
+                  activeOpacity={0.7}
+                >
+                  {updatingStatus ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.receivedButtonText}>RECEIVED</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* —— Drop-off Address + To Drop Off row —— */}
-            <View style={styles.twoColRow}>
-              {/* Drop-off Address card */}
-              <View style={[styles.dropoffAddressCard, { backgroundColor: cardBg }]}>
-                <Text style={[styles.cardLabel, { color: textSecColor }]}>Drop-off Address</Text>
-                <Text style={[styles.dropoffAddressText, { color: textColor }]} numberOfLines={2}>
-                  {delivery.dropoff_address || '—'}
-                </Text>
-              </View>
+            {/* —— Drop-off Address (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <Text style={[styles.cardLabel, { color: textSecColor }]}>Drop-off Address</Text>
+              <Text style={[styles.dropoffAddressText, { color: textColor }]} numberOfLines={2}>
+                {delivery.dropoff_address || '—'}
+              </Text>
+            </View>
 
-              {/* To Drop Off + DIRECTIONS */}
-              <View style={[styles.toDropOffCard, { backgroundColor: cardBg }]}>
-                <Text style={[styles.cardLabel, { color: textSecColor }]}>To Drop Off</Text>
-                <View style={styles.toDropOffRow}>
+            {/* —— To Drop Off + DIRECTIONS (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>To Drop Off</Text>
                   <Text style={[styles.cardBigValue, { color: textColor }]}>
                     {distanceToDropoffKm !== null ? `${distanceToDropoffKm.toFixed(1)}Km` : '—'}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.directionsButton}
-                    onPress={() => { tapFeedback(); handleDirectionsToDropoff(); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
-                  </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                  style={styles.directionsButton}
+                  onPress={() => { tapFeedback(); handleDirectionsToDropoff(); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </>
@@ -1333,25 +1331,17 @@ const styles = StyleSheet.create({
 
   // —— Arrived at Pickup layout ——
 
-  twoColRow: {
+  customerCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'stretch',
     marginBottom: 10,
   },
-  customerCard: {
-    flex: 1.2,
-    borderRadius: 12,
-    padding: 14,
-  },
-  customerCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   customerPhoto: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
+    width: 80,
+    height: '100%',
+    minHeight: 72,
   },
   customerPhotoPlaceholder: {
     backgroundColor: '#4B5563',
@@ -1360,61 +1350,41 @@ const styles = StyleSheet.create({
   },
   customerPhotoInitial: {
     fontFamily: fontFamily.bold,
-    fontSize: 22,
+    fontSize: 26,
     color: '#FFFFFF',
   },
   customerInfo: {
     flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
     gap: 2,
   },
   customerName: {
     fontFamily: fontFamily.bold,
     fontSize: 20,
   },
-  readyInCard: {
-    flex: 0.8,
-    borderRadius: 12,
-    padding: 14,
-  },
-  readyInRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
+  customerPhoneIcon: {
+    paddingRight: 16,
+    alignSelf: 'center',
   },
   receivedButton: {
     backgroundColor: '#ffd21f',
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    width: ACTION_BTN_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
   },
   receivedButtonText: {
     fontFamily: fontFamily.bold,
-    fontSize: 13,
+    fontSize: 14,
     color: '#000000',
     letterSpacing: 0.5,
-  },
-  dropoffAddressCard: {
-    flex: 1.2,
-    borderRadius: 12,
-    padding: 14,
   },
   dropoffAddressText: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
-    marginTop: 4,
-  },
-  toDropOffCard: {
-    flex: 0.8,
-    borderRadius: 12,
-    padding: 14,
-  },
-  toDropOffRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: 4,
   },
 
