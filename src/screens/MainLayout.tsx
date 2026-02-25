@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Platform, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
@@ -13,7 +13,7 @@ import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 
 // Notification sound for exclusive offers (hosted on Cloudinary)
-const EXCLUSIVE_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/upload/v1772027556/567206__sergequadrado__announcement-sound-2_pyfkfq.wav';
+const EXCLUSIVE_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/upload/v1772028075/exclusive-offer-sound-loud_oyvoy7.wav';
 
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
@@ -52,18 +52,27 @@ export function MainLayout() {
   // Sound ref to allow cleanup
   const soundRef = useRef<Audio.Sound | null>(null);
 
+  // Track which offer ID we already played sound for (prevent replays)
+  const lastPlayedOfferIdRef = useRef<string | null>(null);
+
   // ── Play exclusive offer notification sound ─────────────────────────────
 
   const playExclusiveOfferSound = useCallback(async () => {
     try {
+      console.log('[MainLayout] Setting audio mode...');
+
       // Configure audio to mix with other apps (don't pause their music)
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
+
+      console.log('[MainLayout] Audio mode set. Unloading previous sound...');
 
       // Unload any previous sound
       if (soundRef.current) {
@@ -73,16 +82,21 @@ export function MainLayout() {
         soundRef.current = null;
       }
 
+      console.log('[MainLayout] Loading sound from:', EXCLUSIVE_OFFER_SOUND_URL);
+
       // Load and play the notification sound
-      const { sound } = await Audio.Sound.createAsync(
+      const { sound, status } = await Audio.Sound.createAsync(
         { uri: EXCLUSIVE_OFFER_SOUND_URL },
         { shouldPlay: true, volume: 1.0 },
       );
+
+      console.log('[MainLayout] Sound loaded, status:', JSON.stringify(status));
       soundRef.current = sound;
 
       // Auto-cleanup when done playing
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
+        if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
+          console.log('[MainLayout] Sound finished playing, cleaning up');
           sound.unloadAsync().catch(() => {});
           if (soundRef.current === sound) {
             soundRef.current = null;
@@ -90,9 +104,9 @@ export function MainLayout() {
         }
       });
 
-      console.log('[MainLayout] Playing exclusive offer notification sound');
+      console.log('[MainLayout] ✅ Exclusive offer notification sound playing');
     } catch (err) {
-      console.warn('[MainLayout] Could not play exclusive offer sound:', err);
+      console.error('[MainLayout] ❌ Could not play exclusive offer sound:', err);
     }
   }, []);
 
@@ -141,15 +155,16 @@ export function MainLayout() {
         }
 
         console.log('[MainLayout] Found pending exclusive offer:', offer.id);
-        setForcedExclusiveOffer((prev) => {
-          // Only play sound if this is a NEW exclusive offer (not the same one)
-          if (!prev || prev.offerId !== offer.id) {
-            playExclusiveOfferSound();
-          }
-          return {
-            deliveryRequestId: offer.delivery_request_id,
-            offerId: offer.id,
-          };
+
+        // Play sound if this is a NEW offer we haven't played for yet
+        if (lastPlayedOfferIdRef.current !== offer.id) {
+          lastPlayedOfferIdRef.current = offer.id;
+          playExclusiveOfferSound();
+        }
+
+        setForcedExclusiveOffer({
+          deliveryRequestId: offer.delivery_request_id,
+          offerId: offer.id,
         });
       } else {
         setForcedExclusiveOffer(null);
@@ -188,6 +203,7 @@ export function MainLayout() {
             payload.new.status === 'pending'
           ) {
             console.log('[MainLayout] New exclusive offer detected — forcing screen');
+            lastPlayedOfferIdRef.current = payload.new.id;
             playExclusiveOfferSound();
             setForcedExclusiveOffer({
               deliveryRequestId: payload.new.delivery_request_id,
