@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,13 +9,16 @@ import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
 import { fontFamily } from '../constants/typography';
+import { supabase } from '../lib/supabase';
 
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
- * When courier is online, shows OnlineScreen without bottom nav.
- * When an offer is tapped, shows OpenOfferScreen.
- * When an accepted delivery is tapped, shows ActiveDeliveryScreen.
- * When offline, shows normal tab navigation with dashboard.
+ *
+ * EXCLUSIVE OFFER TAKEOVER:
+ * If the courier has a pending exclusive delivery_offer, the OpenOfferScreen
+ * is forced with no way to dismiss — accept, reject, or expiry only.
+ * This check runs on mount and via realtime subscription, so it persists
+ * even across app restarts.
  */
 export function MainLayout() {
   const { colors } = useTheme();
@@ -32,6 +35,116 @@ export function MainLayout() {
 
   // Active delivery navigation state
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
+
+  // Forced exclusive offer state — takes over entire app
+  const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
+    deliveryRequestId: string;
+    offerId: string;
+  } | null>(null);
+
+  // ── Check for pending exclusive offers ──────────────────────────────────
+
+  const checkForExclusiveOffer = useCallback(async () => {
+    if (!courier?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('delivery_offer')
+        .select('id, delivery_request_id, type, status, courier_id, expires_at')
+        .eq('courier_id', courier.id)
+        .eq('type', 'exclusive')
+        .eq('status', 'pending')
+        .order('offered_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('[MainLayout] Error checking exclusive offers:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const offer = data[0];
+
+        // Check if it hasn't expired yet
+        if (offer.expires_at) {
+          const expiresAt = new Date(offer.expires_at);
+          const now = new Date();
+          if (expiresAt.getTime() <= now.getTime()) {
+            // Already expired, clear it
+            setForcedExclusiveOffer(null);
+            return;
+          }
+        }
+
+        console.log('[MainLayout] Found pending exclusive offer:', offer.id);
+        setForcedExclusiveOffer({
+          deliveryRequestId: offer.delivery_request_id,
+          offerId: offer.id,
+        });
+      } else {
+        setForcedExclusiveOffer(null);
+      }
+    } catch (err) {
+      console.error('[MainLayout] Error checking exclusive offers:', err);
+    }
+  }, [courier?.id]);
+
+  // Check on mount and when courier changes
+  useEffect(() => {
+    checkForExclusiveOffer();
+  }, [checkForExclusiveOffer]);
+
+  // Realtime subscription for delivery_offer changes
+  useEffect(() => {
+    if (!courier?.id) return;
+
+    const subscription = supabase
+      .channel(`exclusive-offer-watch-${courier.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_offer',
+        },
+        (payload: any) => {
+          console.log('[MainLayout] delivery_offer realtime event:', payload.eventType);
+
+          // New exclusive offer inserted for this courier
+          if (
+            payload.eventType === 'INSERT' &&
+            payload.new.type === 'exclusive' &&
+            payload.new.courier_id === courier.id &&
+            payload.new.status === 'pending'
+          ) {
+            console.log('[MainLayout] New exclusive offer detected — forcing screen');
+            setForcedExclusiveOffer({
+              deliveryRequestId: payload.new.delivery_request_id,
+              offerId: payload.new.id,
+            });
+          }
+
+          // Offer status changed (accepted/rejected/timed_out) — re-check
+          if (payload.eventType === 'UPDATE') {
+            if (
+              payload.new.type === 'exclusive' &&
+              payload.new.courier_id === courier.id &&
+              payload.new.status !== 'pending'
+            ) {
+              console.log('[MainLayout] Exclusive offer resolved — clearing forced screen');
+              setForcedExclusiveOffer(null);
+            }
+          }
+        }
+      )
+      .subscribe((status: string) => {
+        console.log('[MainLayout] Exclusive offer subscription:', status);
+      });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [courier?.id]);
 
   // ── Tab navigation ──────────────────────────────────────────────────────
 
@@ -51,6 +164,34 @@ export function MainLayout() {
     setActiveDeliveryId(null);
     setActiveTab('dashboard');
   };
+
+  // ── Handle exclusive offer resolved (accept/reject/expiry) ──────────────
+
+  const handleExclusiveResolved = () => {
+    setForcedExclusiveOffer(null);
+    // Re-check in case there's another one queued
+    checkForExclusiveOffer();
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FORCED EXCLUSIVE OFFER — takes priority over EVERYTHING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (forcedExclusiveOffer) {
+    return (
+      <SafeAreaProvider>
+        <View style={[styles.root, { backgroundColor: '#000000' }]}>
+          <OpenOfferScreen
+            deliveryRequestId={forcedExclusiveOffer.deliveryRequestId}
+            offerType="exclusive"
+            isForced
+            onBack={handleExclusiveResolved}
+            onOfferResolved={handleExclusiveResolved}
+          />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
 
   // ── If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
 

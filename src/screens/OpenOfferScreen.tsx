@@ -31,6 +31,11 @@ interface OpenOfferScreenProps {
   onBack: () => void;
   /** Called after accept/reject so parent can reload offers */
   onOfferResolved?: () => void;
+  /**
+   * When true, the screen cannot be dismissed — no back button.
+   * Used for exclusive offers that must be accepted/rejected/expired.
+   */
+  isForced?: boolean;
 }
 
 interface PlaceData {
@@ -112,6 +117,7 @@ export function OpenOfferScreen({
   offerType,
   onBack,
   onOfferResolved,
+  isForced = false,
 }: OpenOfferScreenProps) {
   const { courier, refreshCourier } = useAuth();
   const insets = useSafeAreaInsets();
@@ -506,13 +512,24 @@ export function OpenOfferScreen({
       <View style={[styles.screen, { backgroundColor: bg, paddingTop: insets.top }]}>
         <View style={styles.centeredMessage}>
           <Text style={[styles.centeredTitle, { color: '#EF4444' }]}>{error}</Text>
-          <TouchableOpacity
-            style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.centeredButtonText}>Go Back</Text>
-          </TouchableOpacity>
+          {!isForced && (
+            <TouchableOpacity
+              style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.centeredButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          )}
+          {isForced && (
+            <TouchableOpacity
+              style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
+              onPress={loadData}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.centeredButtonText}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -523,13 +540,24 @@ export function OpenOfferScreen({
       <View style={[styles.screen, { backgroundColor: bg, paddingTop: insets.top }]}>
         <View style={styles.centeredMessage}>
           <Text style={[styles.centeredTitle, { color: textColor }]}>Delivery not found</Text>
-          <TouchableOpacity
-            style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.centeredButtonText}>Go Back</Text>
-          </TouchableOpacity>
+          {!isForced && (
+            <TouchableOpacity
+              style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.centeredButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          )}
+          {isForced && (
+            <TouchableOpacity
+              style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
+              onPress={loadData}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.centeredButtonText}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -541,21 +569,38 @@ export function OpenOfferScreen({
     <View style={[styles.screen, { backgroundColor: bg }]}>
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {profileImage ? (
-          <TouchableOpacity onPress={onBack} activeOpacity={0.7}>
+        {isForced ? (
+          // Forced mode: show profile pic but NOT tappable (no back navigation)
+          profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-          </TouchableOpacity>
+          ) : (
+            <View
+              style={[
+                styles.headerProfileImage,
+                { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
+              ]}
+            >
+              <User size={20} color="#666" />
+            </View>
+          )
         ) : (
-          <TouchableOpacity
-            onPress={onBack}
-            activeOpacity={0.7}
-            style={[
-              styles.headerProfileImage,
-              { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
-            ]}
-          >
-            <User size={20} color="#666" />
-          </TouchableOpacity>
+          // Normal mode: tappable profile pic acts as back button
+          profileImage ? (
+            <TouchableOpacity onPress={onBack} activeOpacity={0.7}>
+              <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={onBack}
+              activeOpacity={0.7}
+              style={[
+                styles.headerProfileImage,
+                { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
+              ]}
+            >
+              <User size={20} color="#666" />
+            </TouchableOpacity>
+          )
         )}
 
         <Text style={styles.headerTitle}>{headerTitle}</Text>

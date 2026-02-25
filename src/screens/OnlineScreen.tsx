@@ -98,8 +98,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     earningsPerKm: 0,
   });
 
-  // Offers
-  const [exclusiveOffer, setExclusiveOffer] = useState<any>(null);
+  // Offers — only open offers (exclusive offers are handled by MainLayout forced screen)
   const [openOffers, setOpenOffers] = useState<any[]>([]);
   const [acceptedDeliveries, setAcceptedDeliveries] = useState<any[]>([]);
 
@@ -123,33 +122,20 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
       if (error) {
         console.error('[OnlineScreen] Error fetching offers:', error);
-        setExclusiveOffer(null);
         setOpenOffers([]);
         return;
       }
 
       if (!data || data.length === 0) {
         console.log('[OnlineScreen] No offers available');
-        setExclusiveOffer(null);
         setOpenOffers([]);
         return;
       }
 
       console.log(`[OnlineScreen] RPC returned ${data.length} offer(s)`);
 
-      const exclusive = data.find((r: any) => r.offer_data?.type === 'exclusive');
+      // Only show open offers — exclusive offers are handled by MainLayout forced screen
       const open = data.filter((r: any) => r.offer_data?.type === 'open');
-
-      if (exclusive) {
-        setExclusiveOffer({
-          ...exclusive.delivery_data,
-          place_name: exclusive.place_name,
-          customer_name: exclusive.customer_name,
-          delivery_offer: exclusive.offer_data,
-        });
-      } else {
-        setExclusiveOffer(null);
-      }
 
       if (open.length > 0) {
         setOpenOffers(
@@ -165,7 +151,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       }
     } catch (err) {
       console.error('[OnlineScreen] Error loading offers:', err);
-      setExclusiveOffer(null);
       setOpenOffers([]);
     }
   }, [courier?.id]);
@@ -365,7 +350,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const textSecColor = '#9CA3AF';
 
   const profileImage = courier?.profile_picture_url || null;
-  const totalOffers = (exclusiveOffer ? 1 : 0) + openOffers.length;
+  const totalOffers = openOffers.length;
 
   if (loading) {
     return (
@@ -498,31 +483,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           )}
         </View>
 
-        {/* Exclusive Offer */}
-        {exclusiveOffer && (
-          <TouchableOpacity
-            style={[styles.offerCard, { backgroundColor: cardBg }]}
-            onPress={() => handleOfferPress(exclusiveOffer)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.offerCardContent}>
-              <View style={styles.offerInfo}>
-                <Text style={[styles.offerPoints, { color: textColor }]}>
-                  {Math.round(exclusiveOffer.points_offered || 0).toLocaleString()} Points
-                </Text>
-                <Text style={[styles.offerDeliveryNumber, { color: textSecColor }]}>
-                  Delivery #{exclusiveOffer.delivery_number || exclusiveOffer.id?.slice(-6).toUpperCase()}
-                </Text>
-                <Text style={[styles.offerDistance, { color: textSecColor }]}>
-                  {(exclusiveOffer.delivery_distance_km || 0).toFixed(1)}KM Away
-                </Text>
-              </View>
-              {renderArriveInBadge(exclusiveOffer.pickup_eta)}
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Open Offers (vertical list) */}
+        {/* Open Offers (vertical list) — exclusive offers never shown here */}
         {openOffers.map((offer) => (
           <TouchableOpacity
             key={offer.id}
