@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Audio } from 'expo-av';
 import { ChevronLeft, User, X, ZapOff } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { fontFamily } from '../constants/typography';
@@ -33,6 +34,9 @@ const MARKER_PICKUP =
   'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png';
 const MARKER_DROPOFF =
   'https://res.cloudinary.com/chowlocal/image/upload/v1772029798/customer-drop-off-location_gsvl82.png';
+
+const REJECT_SOUND_URL =
+  'https://res.cloudinary.com/chowlocal/video/upload/v1772032715/quick-fart_pelyey.wav';
 
 // ── Dark mode map style ──────────────────────────────────────────────────────
 
@@ -519,7 +523,20 @@ export function OpenOfferScreen({
 
   const handleReject = async (isAutomatic = false) => {
     if (!courier?.id || !delivery) return;
-    if (!isAutomatic) setRejecting(true);
+    if (!isAutomatic) {
+      setRejecting(true);
+      // Play reject sound
+      try {
+        const { sound } = await Audio.Sound.createAsync({ uri: REJECT_SOUND_URL });
+        await sound.playAsync();
+        // Auto-unload after playback
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) sound.unloadAsync();
+        });
+      } catch (soundErr) {
+        console.warn('[OpenOfferScreen] Reject sound error:', soundErr);
+      }
+    }
     setError(null);
 
     try {
