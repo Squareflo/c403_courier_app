@@ -87,6 +87,8 @@ interface DeliveryData {
   points_offered: number | null;
   courier_earnings: number | null;
   is_outside_order: boolean | null;
+  outside_order_delivery_customer_name: string | null;
+  outside_order_delivery_customer_phone_number: string | null;
 }
 
 interface RouteCoord {
@@ -95,6 +97,14 @@ interface RouteCoord {
 }
 
 // —— Helpers ————————————————————————————————————————————————————
+
+/** Extract just the street address part (strip city, state, zip, country) */
+function formatStreetAddress(fullAddress: string | null): string {
+  if (!fullAddress) return '—';
+  // Split on comma, take just the first part (street address)
+  const parts = fullAddress.split(',');
+  return parts[0]?.trim() || '—';
+}
 
 function calculateDistanceKm(
   lat1: number, lon1: number, lat2: number, lon2: number,
@@ -346,6 +356,8 @@ export function ActiveDeliveryScreen({
            delivery_distance_km, delivery_distance_miles,
            pickup_eta, drop_off_eta, eta_minutes, points_offered,
            courier_earnings, is_outside_order,
+           outside_order_delivery_customer_name,
+           outside_order_delivery_customer_phone_number,
            place:place_id (
              id, name, address_line_1, city, state,
              profile_picture_url, photos, rating, average_rating,
@@ -667,11 +679,14 @@ export function ActiveDeliveryScreen({
   // —— Call customer ——————————————————————————————————————————————
 
   const handleCallCustomer = () => {
-    if (!customer?.phone_number) {
+    const phone = delivery?.is_outside_order === true
+      ? delivery?.outside_order_delivery_customer_phone_number
+      : customer?.phone_number;
+    if (!phone) {
       Alert.alert('No Phone Number', 'Phone number not available for this customer.');
       return;
     }
-    Linking.openURL(`tel:${customer.phone_number}`);
+    Linking.openURL(`tel:${phone}`);
   };
 
   // —— Open directions in Google Maps ——————————————————————————————
@@ -731,9 +746,17 @@ export function ActiveDeliveryScreen({
 
   const totalOffers = openOffers.length;
 
+  // Determine customer info (regular order vs outside order)
+  const isOutsideOrder = delivery?.is_outside_order === true;
+  const customerName = isOutsideOrder
+    ? (delivery?.outside_order_delivery_customer_name || 'Customer')
+    : (customer?.first_name || 'Customer');
+  const customerPhone = isOutsideOrder
+    ? (delivery?.outside_order_delivery_customer_phone_number || null)
+    : (customer?.phone_number || null);
+  const customerPhoto = isOutsideOrder ? null : (customer?.profile_picture_url || null);
+
   const isAtPickup = delivery?.status === 'arrived_at_pickup';
-  const customerName = customer?.first_name || 'Customer';
-  const customerPhoto = customer?.profile_picture_url || null;
 
   // —— Loading ———————————————————————————————————————————————————
 
@@ -789,12 +812,15 @@ export function ActiveDeliveryScreen({
     : (place?.name || 'Pickup');
 
   // Fallback region before fitToCoordinates runs
-  const fallbackRegion = pickupCoord
+  const fallbackCenter = isAtPickup && courierLocation
+    ? courierLocation
+    : pickupCoord;
+  const fallbackRegion = fallbackCenter
     ? {
-        latitude: pickupCoord.latitude,
-        longitude: pickupCoord.longitude,
-        latitudeDelta: 0.03,
-        longitudeDelta: 0.03,
+        latitude: fallbackCenter.latitude,
+        longitude: fallbackCenter.longitude,
+        latitudeDelta: isAtPickup ? 0.01 : 0.03,
+        longitudeDelta: isAtPickup ? 0.01 : 0.03,
       }
     : {
         latitude: 50.4452,
@@ -806,25 +832,40 @@ export function ActiveDeliveryScreen({
   // Collect all visible coords for fitToCoordinates
   const allMapCoords: RouteCoord[] = [];
   if (courierLocation) allMapCoords.push(courierLocation);
-  if (pickupCoord) allMapCoords.push(pickupCoord);
-  if (dropoffCoord) allMapCoords.push(dropoffCoord);
+  if (!isAtPickup) {
+    if (pickupCoord) allMapCoords.push(pickupCoord);
+    if (dropoffCoord) allMapCoords.push(dropoffCoord);
+  }
 
   /** Fit all markers on the given map ref */
   const fitMap = (ref: MapView | null) => {
-    if (!ref || allMapCoords.length < 2) return;
-    setTimeout(() => {
-      ref.fitToCoordinates(allMapCoords, {
-        edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
-        animated: false,
-      });
-    }, 300);
+    if (!ref) return;
+    if (allMapCoords.length >= 2) {
+      setTimeout(() => {
+        ref.fitToCoordinates(allMapCoords, {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: false,
+        });
+      }, 300);
+    } else if (allMapCoords.length === 1) {
+      // Single marker (e.g. courier only at pickup) — just animate to it
+      setTimeout(() => {
+        ref.animateToRegion({
+          latitude: allMapCoords[0].latitude,
+          longitude: allMapCoords[0].longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 0);
+      }, 300);
+    }
   };
 
   // —— Shared map markers renderer ————————————————————————————————
 
   const renderMapMarkers = () => (
     <>
-      {pickupCoord && (
+      {/* Show pickup marker only when heading to pickup (not at pickup yet) */}
+      {!isAtPickup && pickupCoord && (
         <Marker
           key="marker-pickup"
           identifier="marker-pickup"
@@ -839,7 +880,8 @@ export function ActiveDeliveryScreen({
           />
         </Marker>
       )}
-      {dropoffCoord && (
+      {/* Show dropoff marker only when en_route or later (not at pickup) */}
+      {!isAtPickup && dropoffCoord && (
         <Marker
           key="marker-dropoff"
           identifier="marker-dropoff"
@@ -990,7 +1032,7 @@ export function ActiveDeliveryScreen({
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <Text style={[styles.cardLabel, { color: textSecColor }]}>Drop-off Address</Text>
               <Text style={[styles.dropoffAddressText, { color: textColor }]} numberOfLines={2}>
-                {delivery.dropoff_address || '—'}
+                {formatStreetAddress(delivery.dropoff_address)}
               </Text>
             </View>
 
