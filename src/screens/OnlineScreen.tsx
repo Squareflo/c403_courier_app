@@ -163,78 +163,40 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
     try {
       // Find delivery_requests where:
-      // 1. Status is still waiting_for_courier_to_accept
+      // 1. Status is still waiting_for_courier_to_accept (unclaimed)
       // 2. This courier's ID is in rejected_by_couriers JSONB array
-      // 3. There is still a pending open delivery_offer
+      // No need to check delivery_offer — the offer row status changes to rejected
+      // but the delivery_request itself is still open for acceptance
       const { data, error } = await supabase
         .from('delivery_request')
         .select(
           `id, delivery_number, status, pickup_address, pickup_eta,
            delivery_distance_km, points_offered,
            rejected_by_couriers,
-           place:place_id (name, profile_picture_url),
-           delivery_offer!inner (id, type, status, expires_at)`
+           place:place_id (name, profile_picture_url)`
         )
         .eq('status', 'waiting_for_courier_to_accept')
-        .contains('rejected_by_couriers', JSON.stringify([{ courier_id: courier.id }]))
-        .eq('delivery_offer.type', 'open')
-        .eq('delivery_offer.status', 'pending')
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
 
-      if (error) {
+      if (error || !data) {
         console.error('[OnlineScreen] Error loading rejected offers:', error);
-
-        // Fallback: simpler query using raw filter
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('delivery_request')
-          .select(
-            `id, delivery_number, status, pickup_address, pickup_eta,
-             delivery_distance_km, points_offered,
-             rejected_by_couriers,
-             place:place_id (name, profile_picture_url)`
-          )
-          .eq('status', 'waiting_for_courier_to_accept')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (fallbackError || !fallbackData) {
-          console.error('[OnlineScreen] Fallback rejected query also failed:', fallbackError);
-          setRejectedOffers([]);
-          return;
-        }
-
-        // Filter in JS — check if courier's ID appears in rejected_by_couriers
-        const rejected = fallbackData.filter((dr: any) => {
-          const rejectedList = dr.rejected_by_couriers || [];
-          return Array.isArray(rejectedList) &&
-            rejectedList.some((r: any) => r.courier_id === courier.id);
-        });
-
-        // Exclude any that are already in the openOffers list (they show there instead)
-        const openOfferIds = new Set(openOffers.map((o: any) => o.id));
-        const filtered = rejected.filter((dr: any) => !openOfferIds.has(dr.id));
-
-        setRejectedOffers(
-          filtered.map((dr: any) => {
-            const place = Array.isArray(dr.place) ? dr.place[0] : dr.place;
-            return {
-              ...dr,
-              place_name: place?.name || 'Unknown',
-            };
-          })
-        );
-        return;
-      }
-
-      if (!data || data.length === 0) {
         setRejectedOffers([]);
         return;
       }
 
-      // Exclude any that are already in the openOffers list
+      // Filter in JS — check if courier's ID appears in rejected_by_couriers
+      const rejected = data.filter((dr: any) => {
+        const rejectedList = dr.rejected_by_couriers || [];
+        return (
+          Array.isArray(rejectedList) &&
+          rejectedList.some((r: any) => r.courier_id === courier.id)
+        );
+      });
+
+      // Exclude any that already appear in the openOffers list (no duplicates)
       const openOfferIds = new Set(openOffers.map((o: any) => o.id));
-      const filtered = data.filter((dr: any) => !openOfferIds.has(dr.id));
+      const filtered = rejected.filter((dr: any) => !openOfferIds.has(dr.id));
 
       setRejectedOffers(
         filtered.map((dr: any) => {
