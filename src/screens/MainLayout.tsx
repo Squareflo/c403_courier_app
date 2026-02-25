@@ -55,6 +55,23 @@ export function MainLayout() {
   // ── If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
 
   if (isOnline || courier?.is_online) {
+    // If an offer is selected, show the OpenOfferScreen (takes priority so
+    // tapping an offer from ActiveDeliveryScreen navigates here)
+    if (selectedOffer) {
+      return (
+        <SafeAreaProvider>
+          <View style={[styles.root, { backgroundColor: '#000000' }]}>
+            <OpenOfferScreen
+              deliveryRequestId={selectedOffer.id}
+              offerType={selectedOffer.type}
+              onBack={() => setSelectedOffer(null)}
+              onOfferResolved={() => setSelectedOffer(null)}
+            />
+          </View>
+        </SafeAreaProvider>
+      );
+    }
+
     // If an active delivery is selected, show the ActiveDeliveryScreen
     if (activeDeliveryId) {
       return (
@@ -66,22 +83,7 @@ export function MainLayout() {
               onDeliveryCompleted={() => {
                 setActiveDeliveryId(null);
               }}
-            />
-          </View>
-        </SafeAreaProvider>
-      );
-    }
-
-    // If an offer is selected, show the OpenOfferScreen
-    if (selectedOffer) {
-      return (
-        <SafeAreaProvider>
-          <View style={[styles.root, { backgroundColor: '#000000' }]}>
-            <OpenOfferScreen
-              deliveryRequestId={selectedOffer.id}
-              offerType={selectedOffer.type}
-              onBack={() => setSelectedOffer(null)}
-              onOfferResolved={() => setSelectedOffer(null)}
+              onOfferPress={(id, type) => setSelectedOffer({ id, type })}
             />
           </View>
         </SafeAreaProvider>
