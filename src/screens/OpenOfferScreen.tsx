@@ -38,6 +38,9 @@ const MARKER_DROPOFF =
 const REJECT_SOUND_URL =
   'https://res.cloudinary.com/chowlocal/video/upload/v1772032715/quick-fart_pelyey.wav';
 
+const ACCEPT_SOUND_URL =
+  'https://res.cloudinary.com/chowlocal/video/upload/v1772033249/196571__ecfike__yeeeeeaaaahh-yeah_dsiwmp.wav';
+
 // ── Dark mode map style ──────────────────────────────────────────────────────
 
 const DARK_MAP_STYLE = [
@@ -465,6 +468,17 @@ export function OpenOfferScreen({
     if (!courier?.id || !delivery) return;
     setAccepting(true);
     setError(null);
+
+    // Play accept sound
+    try {
+      const { sound } = await Audio.Sound.createAsync({ uri: ACCEPT_SOUND_URL });
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) sound.unloadAsync();
+      });
+    } catch (soundErr) {
+      console.warn('[OpenOfferScreen] Accept sound error:', soundErr);
+    }
 
     try {
       // 1. Update delivery_request
