@@ -819,8 +819,8 @@ export function ActiveDeliveryScreen({
     ? {
         latitude: fallbackCenter.latitude,
         longitude: fallbackCenter.longitude,
-        latitudeDelta: isAtPickup ? 0.01 : 0.03,
-        longitudeDelta: isAtPickup ? 0.01 : 0.03,
+        latitudeDelta: 0.03,
+        longitudeDelta: 0.03,
       }
     : {
         latitude: 50.4452,
@@ -832,10 +832,8 @@ export function ActiveDeliveryScreen({
   // Collect all visible coords for fitToCoordinates
   const allMapCoords: RouteCoord[] = [];
   if (courierLocation) allMapCoords.push(courierLocation);
-  if (!isAtPickup) {
-    if (pickupCoord) allMapCoords.push(pickupCoord);
-    if (dropoffCoord) allMapCoords.push(dropoffCoord);
-  }
+  if (!isAtPickup && pickupCoord) allMapCoords.push(pickupCoord);
+  if (dropoffCoord) allMapCoords.push(dropoffCoord);
 
   /** Fit all markers on the given map ref */
   const fitMap = (ref: MapView | null) => {
@@ -880,8 +878,7 @@ export function ActiveDeliveryScreen({
           />
         </Marker>
       )}
-      {/* Show dropoff marker only when en_route or later (not at pickup) */}
-      {!isAtPickup && dropoffCoord && (
+      {dropoffCoord && (
         <Marker
           key="marker-dropoff"
           identifier="marker-dropoff"
