@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import {
+  ImageBackground,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+} from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { useTheme } from '../contexts/ThemeContext';
@@ -15,17 +23,17 @@ import { supabase } from '../lib/supabase';
 // Notification sound for exclusive offers (hosted on Cloudinary)
 const EXCLUSIVE_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/upload/v1772028075/exclusive-offer-sound-loud_oyvoy7.wav';
 
+// Exclusive offer splash screen assets
+const EXCLUSIVE_BG_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1772029081/new-offer-background-colr_c46ofv.jpg';
+const EXCLUSIVE_ICON_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
+
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
  *
  * EXCLUSIVE OFFER TAKEOVER:
- * If the courier has a pending exclusive delivery_offer, the OpenOfferScreen
- * is forced with no way to dismiss — accept, reject, or expiry only.
- * This check runs on mount and via realtime subscription, so it persists
- * even across app restarts.
- *
- * A notification sound plays when the exclusive offer appears, mixed with
- * any background audio from other apps (does not pause their music).
+ * 1. Splash screen with looping notification sound
+ * 2. Courier taps "OPEN" to view offer details
+ * 3. OpenOfferScreen forced with no back — accept, reject, or expiry only
  */
 export function MainLayout() {
   const { colors } = useTheme();
@@ -47,21 +55,24 @@ export function MainLayout() {
   const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
     deliveryRequestId: string;
     offerId: string;
+    expiresAt: string | null;
   } | null>(null);
+
+  // Whether the courier has tapped "OPEN" on the splash screen
+  const [exclusiveSplashDismissed, setExclusiveSplashDismissed] = useState(false);
 
   // Sound ref to allow cleanup
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  // Track which offer ID we already played sound for (prevent replays)
-  const lastPlayedOfferIdRef = useRef<string | null>(null);
+  // Track which offer ID we already triggered for (prevent re-triggers)
+  const lastTriggeredOfferIdRef = useRef<string | null>(null);
 
-  // ── Play exclusive offer notification sound ─────────────────────────────
+  // ── Play exclusive offer notification sound (looping) ───────────────────
 
   const playExclusiveOfferSound = useCallback(async () => {
     try {
       console.log('[MainLayout] Setting audio mode...');
 
-      // Configure audio to mix with other apps (don't pause their music)
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -72,11 +83,10 @@ export function MainLayout() {
         playThroughEarpieceAndroid: false,
       });
 
-      console.log('[MainLayout] Audio mode set. Unloading previous sound...');
-
       // Unload any previous sound
       if (soundRef.current) {
         try {
+          await soundRef.current.stopAsync();
           await soundRef.current.unloadAsync();
         } catch {}
         soundRef.current = null;
@@ -84,29 +94,30 @@ export function MainLayout() {
 
       console.log('[MainLayout] Loading sound from:', EXCLUSIVE_OFFER_SOUND_URL);
 
-      // Load and play the notification sound
       const { sound, status } = await Audio.Sound.createAsync(
         { uri: EXCLUSIVE_OFFER_SOUND_URL },
-        { shouldPlay: true, volume: 1.0 },
+        { shouldPlay: true, volume: 1.0, isLooping: true },
       );
 
-      console.log('[MainLayout] Sound loaded, status:', JSON.stringify(status));
+      console.log('[MainLayout] Sound loaded, looping, status:', JSON.stringify(status));
       soundRef.current = sound;
 
-      // Auto-cleanup when done playing
-      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
-        if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
-          console.log('[MainLayout] Sound finished playing, cleaning up');
-          sound.unloadAsync().catch(() => {});
-          if (soundRef.current === sound) {
-            soundRef.current = null;
-          }
-        }
-      });
-
-      console.log('[MainLayout] ✅ Exclusive offer notification sound playing');
+      console.log('[MainLayout] ✅ Exclusive offer notification sound playing (looping)');
     } catch (err) {
       console.error('[MainLayout] ❌ Could not play exclusive offer sound:', err);
+    }
+  }, []);
+
+  // ── Stop the looping sound ──────────────────────────────────────────────
+
+  const stopExclusiveOfferSound = useCallback(async () => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        console.log('[MainLayout] Sound stopped and unloaded');
+      } catch {}
+      soundRef.current = null;
     }
   }, []);
 
@@ -114,6 +125,7 @@ export function MainLayout() {
   useEffect(() => {
     return () => {
       if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
         soundRef.current = null;
       }
@@ -148,31 +160,36 @@ export function MainLayout() {
           const expiresAt = new Date(offer.expires_at);
           const now = new Date();
           if (expiresAt.getTime() <= now.getTime()) {
-            // Already expired, clear it
             setForcedExclusiveOffer(null);
+            setExclusiveSplashDismissed(false);
+            stopExclusiveOfferSound();
             return;
           }
         }
 
         console.log('[MainLayout] Found pending exclusive offer:', offer.id);
 
-        // Play sound if this is a NEW offer we haven't played for yet
-        if (lastPlayedOfferIdRef.current !== offer.id) {
-          lastPlayedOfferIdRef.current = offer.id;
+        // Play sound if this is a NEW offer
+        if (lastTriggeredOfferIdRef.current !== offer.id) {
+          lastTriggeredOfferIdRef.current = offer.id;
+          setExclusiveSplashDismissed(false);
           playExclusiveOfferSound();
         }
 
         setForcedExclusiveOffer({
           deliveryRequestId: offer.delivery_request_id,
           offerId: offer.id,
+          expiresAt: offer.expires_at,
         });
       } else {
         setForcedExclusiveOffer(null);
+        setExclusiveSplashDismissed(false);
+        stopExclusiveOfferSound();
       }
     } catch (err) {
       console.error('[MainLayout] Error checking exclusive offers:', err);
     }
-  }, [courier?.id, playExclusiveOfferSound]);
+  }, [courier?.id, playExclusiveOfferSound, stopExclusiveOfferSound]);
 
   // Check on mount and when courier changes
   useEffect(() => {
@@ -202,12 +219,14 @@ export function MainLayout() {
             payload.new.courier_id === courier.id &&
             payload.new.status === 'pending'
           ) {
-            console.log('[MainLayout] New exclusive offer detected — forcing screen');
-            lastPlayedOfferIdRef.current = payload.new.id;
+            console.log('[MainLayout] New exclusive offer detected — forcing splash');
+            lastTriggeredOfferIdRef.current = payload.new.id;
+            setExclusiveSplashDismissed(false);
             playExclusiveOfferSound();
             setForcedExclusiveOffer({
               deliveryRequestId: payload.new.delivery_request_id,
               offerId: payload.new.id,
+              expiresAt: payload.new.expires_at,
             });
           }
 
@@ -218,8 +237,10 @@ export function MainLayout() {
               payload.new.courier_id === courier.id &&
               payload.new.status !== 'pending'
             ) {
-              console.log('[MainLayout] Exclusive offer resolved — clearing forced screen');
+              console.log('[MainLayout] Exclusive offer resolved — clearing');
               setForcedExclusiveOffer(null);
+              setExclusiveSplashDismissed(false);
+              stopExclusiveOfferSound();
             }
           }
         }
@@ -231,7 +252,7 @@ export function MainLayout() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [courier?.id, playExclusiveOfferSound]);
+  }, [courier?.id, playExclusiveOfferSound, stopExclusiveOfferSound]);
 
   // ── Tab navigation ──────────────────────────────────────────────────────
 
@@ -239,7 +260,7 @@ export function MainLayout() {
     setActiveTab(tab);
   };
 
-  // ── Online mode (triggered from DashboardScreen's SlideToOnline) ────────
+  // ── Online mode ─────────────────────────────────────────────────────────
 
   const handleWentOnline = () => {
     setIsOnline(true);
@@ -256,8 +277,16 @@ export function MainLayout() {
 
   const handleExclusiveResolved = () => {
     setForcedExclusiveOffer(null);
-    // Re-check in case there's another one queued
+    setExclusiveSplashDismissed(false);
+    stopExclusiveOfferSound();
     checkForExclusiveOffer();
+  };
+
+  // ── Handle "OPEN" tap on splash screen ──────────────────────────────────
+
+  const handleOpenExclusiveOffer = () => {
+    stopExclusiveOfferSound();
+    setExclusiveSplashDismissed(true);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -265,6 +294,20 @@ export function MainLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (forcedExclusiveOffer) {
+    // Show splash screen until courier taps "OPEN"
+    if (!exclusiveSplashDismissed) {
+      return (
+        <SafeAreaProvider>
+          <ExclusiveOfferSplash
+            expiresAt={forcedExclusiveOffer.expiresAt}
+            onOpen={handleOpenExclusiveOffer}
+            onExpired={handleExclusiveResolved}
+          />
+        </SafeAreaProvider>
+      );
+    }
+
+    // After tapping "OPEN", show the full offer details
     return (
       <SafeAreaProvider>
         <View style={[styles.root, { backgroundColor: '#000000' }]}>
@@ -283,8 +326,6 @@ export function MainLayout() {
   // ── If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
 
   if (isOnline || courier?.is_online) {
-    // If an offer is selected, show the OpenOfferScreen (takes priority so
-    // tapping an offer from ActiveDeliveryScreen navigates here)
     if (selectedOffer) {
       return (
         <SafeAreaProvider>
@@ -300,7 +341,6 @@ export function MainLayout() {
       );
     }
 
-    // If an active delivery is selected, show the ActiveDeliveryScreen
     if (activeDeliveryId) {
       return (
         <SafeAreaProvider>
@@ -318,7 +358,6 @@ export function MainLayout() {
       );
     }
 
-    // Otherwise show the OnlineScreen
     return (
       <SafeAreaProvider>
         <View style={[styles.root, { backgroundColor: '#000000' }]}>
@@ -365,7 +404,128 @@ export function MainLayout() {
   );
 }
 
-// Simple placeholder for screens not yet implemented
+// ═══════════════════════════════════════════════════════════════════════════════
+// Exclusive Offer Splash Screen
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface ExclusiveOfferSplashProps {
+  expiresAt: string | null;
+  onOpen: () => void;
+  onExpired: () => void;
+}
+
+function ExclusiveOfferSplash({ expiresAt, onOpen, onExpired }: ExclusiveOfferSplashProps) {
+  const insets = useSafeAreaInsets();
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  // Calculate and update countdown
+  useEffect(() => {
+    if (!expiresAt) return;
+
+    const update = () => {
+      const now = new Date();
+      const expires = new Date(expiresAt);
+      const remaining = Math.max(0, Math.floor((expires.getTime() - now.getTime()) / 1000));
+
+      if (remaining <= 0) {
+        onExpired();
+        return;
+      }
+
+      setCountdown(remaining);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt, onExpired]);
+
+  return (
+    <ImageBackground
+      source={{ uri: EXCLUSIVE_BG_URL }}
+      style={splashStyles.background}
+      resizeMode="cover"
+    >
+      <View style={[splashStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={splashStyles.content}>
+          <Image
+            source={{ uri: EXCLUSIVE_ICON_URL }}
+            style={splashStyles.icon}
+            resizeMode="contain"
+          />
+
+          <Text style={splashStyles.title}>Exclusive Offer!</Text>
+
+          <TouchableOpacity
+            style={splashStyles.openButton}
+            onPress={onOpen}
+            activeOpacity={0.8}
+          >
+            <Text style={splashStyles.openButtonText}>OPEN</Text>
+          </TouchableOpacity>
+
+          {countdown !== null && (
+            <Text style={splashStyles.countdown}>
+              Expires in {countdown} Second{countdown !== 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
+      </View>
+    </ImageBackground>
+  );
+}
+
+const splashStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  icon: {
+    width: 180,
+    height: 180,
+    marginBottom: 24,
+  },
+  title: {
+    fontFamily: fontFamily.bold,
+    fontSize: 34,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  openButton: {
+    backgroundColor: '#27d20b',
+    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 260,
+    marginBottom: 20,
+  },
+  openButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+  },
+  countdown: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+  },
+});
+
+// ─── Placeholder Screen ───────────────────────────────────────────────────
+
 function PlaceholderScreen({ title }: { title: string }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
