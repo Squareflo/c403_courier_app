@@ -34,6 +34,8 @@ const MARKER_PICKUP =
   'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png';
 const MARKER_DROPOFF =
   'https://res.cloudinary.com/chowlocal/image/upload/v1772029798/customer-drop-off-location_gsvl82.png';
+const DEFAULT_CUSTOMER_AVATAR =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1768914448/9187604_treelj.png';
 
 // —— Types ——————————————————————————————————————————————————————————
 
@@ -1011,15 +1013,10 @@ export function ActiveDeliveryScreen({
               activeOpacity={0.7}
               style={[styles.customerCard, { backgroundColor: cardBg }]}
             >
-              {customerPhoto ? (
-                <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
-              ) : (
-                <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
-                  <Text style={styles.customerPhotoInitial}>
-                    {customerName[0]?.toUpperCase() || '?'}
-                  </Text>
-                </View>
-              )}
+              <Image
+                source={{ uri: customerPhoto || DEFAULT_CUSTOMER_AVATAR }}
+                style={styles.customerPhoto}
+              />
               <View style={styles.customerInfo}>
                 <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
                 <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
@@ -1092,15 +1089,10 @@ export function ActiveDeliveryScreen({
               activeOpacity={0.7}
               style={[styles.customerCard, { backgroundColor: cardBg }]}
             >
-              {customerPhoto ? (
-                <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
-              ) : (
-                <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
-                  <Text style={styles.customerPhotoInitial}>
-                    {customerName[0]?.toUpperCase() || '?'}
-                  </Text>
-                </View>
-              )}
+              <Image
+                source={{ uri: customerPhoto || DEFAULT_CUSTOMER_AVATAR }}
+                style={styles.customerPhoto}
+              />
               <View style={styles.customerInfo}>
                 <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
                 <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
@@ -1492,16 +1484,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: '100%',
     minHeight: 72,
-  },
-  customerPhotoPlaceholder: {
-    backgroundColor: '#4B5563',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  customerPhotoInitial: {
-    fontFamily: fontFamily.bold,
-    fontSize: 26,
-    color: '#FFFFFF',
   },
   customerInfo: {
     flex: 1,
