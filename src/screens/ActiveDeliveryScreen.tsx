@@ -842,26 +842,27 @@ export function ActiveDeliveryScreen({
           <Text style={[styles.deliveryNumber, { color: textColor }]}>
             Delivery {deliveryNum}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: badgeColor }]}>
-            <Text style={styles.statusBadgeText}>{badgeLabel}</Text>
+          <View style={[styles.statusBadge, { borderColor: badgeColor }]}>
+            <Text style={[styles.statusBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
           </View>
         </View>
 
         {/* —— Restaurant card (PlaceCard component) —— */}
         {place && (
-          <PlaceCard
-            place={place}
-            containerStyle={{ marginHorizontal: 0 }}
-            rightAction={
-              <TouchableOpacity
-                onPress={() => { tapFeedback(); handleCallRestaurant(); }}
-                activeOpacity={0.7}
-                style={styles.phoneButton}
-              >
-                <Phone size={22} color={textColor} />
-              </TouchableOpacity>
-            }
-          />
+          <TouchableOpacity
+            onPress={() => { tapFeedback(); handleCallRestaurant(); }}
+            activeOpacity={0.7}
+          >
+            <PlaceCard
+              place={place}
+              containerStyle={{ marginHorizontal: 0 }}
+              rightAction={
+                <View style={styles.phoneButton}>
+                  <Phone size={22} color={textColor} />
+                </View>
+              }
+            />
+          </TouchableOpacity>
         )}
 
         {/* —— Arrive In + AT PICKUP (inline row) —— */}
@@ -1078,11 +1079,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 7,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
   },
   statusBadgeText: {
     fontFamily: fontFamily.bold,
     fontSize: 13,
-    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
 
