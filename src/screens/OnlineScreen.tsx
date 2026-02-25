@@ -24,6 +24,7 @@ import {
   stopLocationTracking,
   getCurrentLocation,
 } from '../services/locationService';
+import { useButtonFeedback } from '../hooks/useButtonFeedback';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -81,6 +82,7 @@ interface OnlineScreenProps {
 
 export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPress }: OnlineScreenProps) {
   const { courier, refreshCourier } = useAuth();
+  const { tapFeedback } = useButtonFeedback();
   const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -384,6 +386,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   // ── ZapOff icon press ───────────────────────────────────────────────────
 
   const handleZapOffPress = () => {
+    tapFeedback();
     if (hasActiveDeliveries) {
       setShowOfflineModal(true);
     } else {
@@ -394,6 +397,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   // ── Offer card press ────────────────────────────────────────────────────
 
   const handleOfferPress = (offer: any) => {
+    tapFeedback();
     const offerType = offer.delivery_offer?.type === 'exclusive' ? 'exclusive' : 'open';
     console.log('[OnlineScreen] Offer pressed:', offer.id, 'type:', offerType);
     onOfferPress?.(offer.id, offerType as 'open' | 'exclusive');
@@ -402,6 +406,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   // ── Rejected offer press (re-open the offer detail screen) ──────────────
 
   const handleRejectedOfferPress = (offer: any) => {
+    tapFeedback();
     console.log('[OnlineScreen] Rejected offer pressed:', offer.id);
     onOfferPress?.(offer.id, 'open');
   };
@@ -409,6 +414,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   // ── Accepted delivery press ─────────────────────────────────────────────
 
   const handleAcceptedPress = (deliveryId: string) => {
+    tapFeedback();
     console.log('[OnlineScreen] Accepted delivery pressed:', deliveryId);
     onAcceptedDeliveryPress?.(deliveryId);
   };
@@ -637,7 +643,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
             <TouchableOpacity
               style={styles.goOfflineButton}
-              onPress={handleGoOffline}
+              onPress={() => { tapFeedback(); handleGoOffline(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.goOfflineButtonText}>GO OFFLINE</Text>
@@ -663,7 +669,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setShowOfflineModal(false)}
+              onPress={() => { tapFeedback(); setShowOfflineModal(false); }}
               activeOpacity={0.7}
             >
               <Text style={styles.modalButtonText}>OK</Text>

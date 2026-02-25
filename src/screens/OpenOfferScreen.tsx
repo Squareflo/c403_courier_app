@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentLocation } from '../services/locationService';
 import { PlaceCard } from '../components/ui/PlaceCard';
 import { useTheme } from '../contexts/ThemeContext';
+import { useButtonFeedback } from '../hooks/useButtonFeedback';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -232,6 +233,7 @@ export function OpenOfferScreen({
 }: OpenOfferScreenProps) {
   const { courier, refreshCourier } = useAuth();
   const { isDark } = useTheme();
+  const { tapFeedback } = useButtonFeedback();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
   const fullscreenMapRef = useRef<MapView | null>(null);
@@ -777,6 +779,7 @@ export function OpenOfferScreen({
           <TouchableOpacity
             style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
             onPress={() => {
+              tapFeedback();
               onOfferResolved?.();
               onBack();
             }}
@@ -799,7 +802,7 @@ export function OpenOfferScreen({
           {!isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-              onPress={onBack}
+              onPress={() => { tapFeedback(); onBack(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Go Back</Text>
@@ -808,7 +811,7 @@ export function OpenOfferScreen({
           {isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
-              onPress={loadData}
+              onPress={() => { tapFeedback(); loadData(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Retry</Text>
@@ -827,7 +830,7 @@ export function OpenOfferScreen({
           {!isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-              onPress={onBack}
+              onPress={() => { tapFeedback(); onBack(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Go Back</Text>
@@ -836,7 +839,7 @@ export function OpenOfferScreen({
           {isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
-              onPress={loadData}
+              onPress={() => { tapFeedback(); loadData(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Retry</Text>
@@ -870,12 +873,12 @@ export function OpenOfferScreen({
         ) : (
           // Normal mode: tappable profile pic acts as back button
           profileImage ? (
-            <TouchableOpacity onPress={onBack} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => { tapFeedback(); onBack(); }} activeOpacity={0.7}>
               <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={onBack}
+              onPress={() => { tapFeedback(); onBack(); }}
               activeOpacity={0.7}
               style={[
                 styles.headerProfileImage,
@@ -990,7 +993,7 @@ export function OpenOfferScreen({
         {/* ── Map (locked – tap to expand) ── */}
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => setShowMapFullscreen(true)}
+          onPress={() => { tapFeedback(); setShowMapFullscreen(true); }}
           style={[styles.mapContainer, { backgroundColor: cardBg }]}
         >
           <MapView
@@ -1043,7 +1046,7 @@ export function OpenOfferScreen({
               styles.mapCloseButton,
               { top: insets.top + 12, backgroundColor: isDark ? '#FFFFFF' : '#000000' },
             ]}
-            onPress={() => setShowMapFullscreen(false)}
+            onPress={() => { tapFeedback(); setShowMapFullscreen(false); }}
             activeOpacity={0.8}
           >
             <X size={20} color={isDark ? '#000000' : '#FFFFFF'} strokeWidth={2.5} />

@@ -22,6 +22,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentLocation } from '../services/locationService';
 import { PlaceCard } from '../components/ui/PlaceCard';
 import { useTheme } from '../contexts/ThemeContext';
+import { useButtonFeedback } from '../hooks/useButtonFeedback';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -297,6 +298,7 @@ export function ActiveDeliveryScreen({
 }: ActiveDeliveryScreenProps) {
   const { courier, refreshCourier } = useAuth();
   const { isDark } = useTheme();
+  const { tapFeedback } = useButtonFeedback();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
   const fullscreenMapRef = useRef<MapView | null>(null);
@@ -670,7 +672,7 @@ export function ActiveDeliveryScreen({
           </Text>
           <TouchableOpacity
             style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-            onPress={onBack}
+            onPress={() => { tapFeedback(); onBack(); }}
             activeOpacity={0.7}
           >
             <Text style={styles.centeredButtonText}>Go Back</Text>
@@ -789,7 +791,7 @@ export function ActiveDeliveryScreen({
     <View style={[styles.screen, { backgroundColor: bg }]}>
       {/* —— Header —— */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={styles.headerBackButton}>
+        <TouchableOpacity onPress={() => { tapFeedback(); onBack(); }} activeOpacity={0.7} style={styles.headerBackButton}>
           <ChevronLeft size={28} color={textColor} />
         </TouchableOpacity>
 
@@ -799,7 +801,7 @@ export function ActiveDeliveryScreen({
 
         <TouchableOpacity
           style={[styles.headerAction, { opacity: 0.3 }]}
-          onPress={() => setShowOfflineModal(true)}
+          onPress={() => { tapFeedback(); setShowOfflineModal(true); }}
           activeOpacity={0.7}
         >
           <ZapOff size={24} color={textColor} />
@@ -821,7 +823,7 @@ export function ActiveDeliveryScreen({
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setShowOfflineModal(false)}
+              onPress={() => { tapFeedback(); setShowOfflineModal(false); }}
               activeOpacity={0.7}
             >
               <Text style={styles.modalButtonText}>OK</Text>
@@ -852,7 +854,7 @@ export function ActiveDeliveryScreen({
             containerStyle={{ marginHorizontal: 0 }}
             rightAction={
               <TouchableOpacity
-                onPress={handleCallRestaurant}
+                onPress={() => { tapFeedback(); handleCallRestaurant(); }}
                 activeOpacity={0.7}
                 style={styles.phoneButton}
               >
@@ -873,7 +875,7 @@ export function ActiveDeliveryScreen({
             </View>
             <TouchableOpacity
               style={styles.atPickupButton}
-              onPress={handleArrivedAtPickup}
+              onPress={() => { tapFeedback(); handleArrivedAtPickup(); }}
               disabled={updatingStatus || delivery.status !== 'accepted_by_courier'}
               activeOpacity={0.7}
             >
@@ -897,7 +899,7 @@ export function ActiveDeliveryScreen({
             </View>
             <TouchableOpacity
               style={styles.directionsButton}
-              onPress={handleDirections}
+              onPress={() => { tapFeedback(); handleDirections(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
@@ -908,7 +910,7 @@ export function ActiveDeliveryScreen({
         {/* —— Map (locked – tap to expand) —— */}
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => setShowMapFullscreen(true)}
+          onPress={() => { tapFeedback(); setShowMapFullscreen(true); }}
           style={[styles.mapContainer, { backgroundColor: cardBg }]}
         >
           <MapView
@@ -951,7 +953,7 @@ export function ActiveDeliveryScreen({
               <TouchableOpacity
                 key={offer.id}
                 style={[styles.offerCard, { backgroundColor: cardBg }]}
-                onPress={() => handleOfferPress(offer)}
+                onPress={() => { tapFeedback(); handleOfferPress(offer); }}
                 activeOpacity={0.7}
               >
                 <View style={styles.offerCardContent}>
@@ -1003,7 +1005,7 @@ export function ActiveDeliveryScreen({
               styles.mapCloseButton,
               { top: insets.top + 12, backgroundColor: isDark ? '#FFFFFF' : '#000000' },
             ]}
-            onPress={() => setShowMapFullscreen(false)}
+            onPress={() => { tapFeedback(); setShowMapFullscreen(false); }}
             activeOpacity={0.8}
           >
             <X size={20} color={isDark ? '#000000' : '#FFFFFF'} strokeWidth={2.5} />

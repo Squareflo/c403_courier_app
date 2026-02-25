@@ -10,7 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
+import { useButtonFeedback } from '../hooks/useButtonFeedback';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
@@ -37,6 +39,7 @@ const EXCLUSIVE_ICON_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1
  */
 export function MainLayout() {
   const { colors } = useTheme();
+  const { tapFeedback } = useButtonFeedback();
   const { signOut, courier } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -285,6 +288,7 @@ export function MainLayout() {
   // ── Handle "OPEN" tap on splash screen ──────────────────────────────────
 
   const handleOpenExclusiveOffer = () => {
+    tapFeedback();
     stopExclusiveOfferSound();
     setExclusiveSplashDismissed(true);
   };
