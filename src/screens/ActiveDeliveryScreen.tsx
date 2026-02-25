@@ -182,7 +182,7 @@ function calculateMinutesUntilPickup(pickupEta: string | null): number | null {
 const STATUS_COLORS: Record<string, string> = {
   accepted_by_courier: '#1f48ff',
   arrived_at_pickup: '#8B5CF6',
-  en_route: '#F97316',
+  en_route: '#ffd21f',
   arrived_at_dropoff: '#06B6D4',
   delivered: '#22C55E',
 };
@@ -676,6 +676,35 @@ export function ActiveDeliveryScreen({
     Linking.openURL(url);
   };
 
+  // —— Status update: Arrived at dropoff ————————————————————————————
+
+  const handleArrivedAtDropoff = async () => {
+    if (!delivery) return;
+    setUpdatingStatus(true);
+    setError(null);
+
+    try {
+      const { error: statusError } = await supabase.functions.invoke('update-delivery-status', {
+        body: {
+          delivery_request_id: deliveryRequestId,
+          new_status: 'arrived_at_dropoff',
+        },
+      });
+
+      if (statusError) {
+        console.error('[ActiveDelivery] Status update error:', statusError);
+        setError('Failed to update status. Please try again.');
+      } else {
+        await loadData();
+      }
+    } catch (err) {
+      console.error('[ActiveDelivery] Error updating status:', err);
+      setError('Failed to update status. Please try again.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   // —— Call customer ——————————————————————————————————————————————
 
   const handleCallCustomer = () => {
@@ -757,6 +786,7 @@ export function ActiveDeliveryScreen({
   const customerPhoto = isOutsideOrder ? null : (customer?.profile_picture_url || null);
 
   const isAtPickup = delivery?.status === 'arrived_at_pickup';
+  const isEnRoute = delivery?.status === 'en_route';
 
   // —— Loading ———————————————————————————————————————————————————
 
@@ -812,7 +842,7 @@ export function ActiveDeliveryScreen({
     : (place?.name || 'Pickup');
 
   // Fallback region before fitToCoordinates runs
-  const fallbackCenter = isAtPickup && courierLocation
+  const fallbackCenter = (isAtPickup || isEnRoute) && courierLocation
     ? courierLocation
     : pickupCoord;
   const fallbackRegion = fallbackCenter
@@ -832,7 +862,7 @@ export function ActiveDeliveryScreen({
   // Collect all visible coords for fitToCoordinates
   const allMapCoords: RouteCoord[] = [];
   if (courierLocation) allMapCoords.push(courierLocation);
-  if (!isAtPickup && pickupCoord) allMapCoords.push(pickupCoord);
+  if (!isAtPickup && !isEnRoute && pickupCoord) allMapCoords.push(pickupCoord);
   if (dropoffCoord) allMapCoords.push(dropoffCoord);
 
   /** Fit all markers on the given map ref */
@@ -863,7 +893,7 @@ export function ActiveDeliveryScreen({
   const renderMapMarkers = () => (
     <>
       {/* Show pickup marker only when heading to pickup (not at pickup yet) */}
-      {!isAtPickup && pickupCoord && (
+      {!isAtPickup && !isEnRoute && pickupCoord && (
         <Marker
           key="marker-pickup"
           identifier="marker-pickup"
@@ -1020,6 +1050,87 @@ export function ActiveDeliveryScreen({
                     <ActivityIndicator size="small" color="#000" />
                   ) : (
                     <Text style={styles.receivedButtonText}>RECEIVED</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* —— Drop-off Address (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <Text style={[styles.cardLabel, { color: textSecColor }]}>Drop-off Address</Text>
+              <Text style={[styles.dropoffAddressText, { color: textColor }]} numberOfLines={2}>
+                {formatStreetAddress(delivery.dropoff_address)}
+              </Text>
+            </View>
+
+            {/* —— To Drop Off + DIRECTIONS (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>To Drop Off</Text>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {distanceToDropoffKm !== null ? `${distanceToDropoffKm.toFixed(1)}Km` : '—'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.directionsButton}
+                  onPress={() => { tapFeedback(); handleDirectionsToDropoff(); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        ) : isEnRoute ? (
+          <>
+            {/* ═══ STATUS: en_route ═══ */}
+
+            {/* —— Customer card (same as arrived_at_pickup) —— */}
+            <TouchableOpacity
+              onPress={() => { tapFeedback(); handleCallCustomer(); }}
+              activeOpacity={0.7}
+              style={[styles.customerCard, { backgroundColor: cardBg }]}
+            >
+              {customerPhoto ? (
+                <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
+              ) : (
+                <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
+                  <Text style={styles.customerPhotoInitial}>
+                    {customerName[0]?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.customerInfo}>
+                <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
+                <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
+                  {customerName}
+                </Text>
+              </View>
+              <View style={styles.customerPhoneIcon}>
+                <Phone size={24} color={textColor} />
+              </View>
+            </TouchableOpacity>
+
+            {/* —— Arrive In + AT DROPOFF (full width) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>Arrive In</Text>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {minutesUntilDropoff !== null ? `${minutesUntilDropoff}Min` : '—'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.atDropoffButton}
+                  onPress={() => { tapFeedback(); handleArrivedAtDropoff(); }}
+                  disabled={updatingStatus}
+                  activeOpacity={0.7}
+                >
+                  {updatingStatus ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.atDropoffButtonText}>AT DROPOFF</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1416,6 +1527,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   receivedButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 14,
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  atDropoffButton: {
+    backgroundColor: '#5ce1e6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    width: ACTION_BTN_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atDropoffButtonText: {
     fontFamily: fontFamily.bold,
     fontSize: 14,
     color: '#000000',
