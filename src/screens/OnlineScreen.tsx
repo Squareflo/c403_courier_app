@@ -100,6 +100,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
   // Offers — only open offers (exclusive offers are handled by MainLayout forced screen)
   const [openOffers, setOpenOffers] = useState<any[]>([]);
+  const [rejectedOffers, setRejectedOffers] = useState<any[]>([]);
   const [acceptedDeliveries, setAcceptedDeliveries] = useState<any[]>([]);
 
   // Online timer
@@ -155,6 +156,101 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     }
   }, [courier?.id]);
 
+  // ── Load previously rejected open offers that are still available ───────
+
+  const loadRejectedOffers = useCallback(async () => {
+    if (!courier?.id) return;
+
+    try {
+      // Find delivery_requests where:
+      // 1. Status is still waiting_for_courier_to_accept
+      // 2. This courier's ID is in rejected_by_couriers JSONB array
+      // 3. There is still a pending open delivery_offer
+      const { data, error } = await supabase
+        .from('delivery_request')
+        .select(
+          `id, delivery_number, status, pickup_address, pickup_eta,
+           delivery_distance_km, points_offered,
+           rejected_by_couriers,
+           place:place_id (name, profile_picture_url),
+           delivery_offer!inner (id, type, status, expires_at)`
+        )
+        .eq('status', 'waiting_for_courier_to_accept')
+        .contains('rejected_by_couriers', JSON.stringify([{ courier_id: courier.id }]))
+        .eq('delivery_offer.type', 'open')
+        .eq('delivery_offer.status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('[OnlineScreen] Error loading rejected offers:', error);
+
+        // Fallback: simpler query using raw filter
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('delivery_request')
+          .select(
+            `id, delivery_number, status, pickup_address, pickup_eta,
+             delivery_distance_km, points_offered,
+             rejected_by_couriers,
+             place:place_id (name, profile_picture_url)`
+          )
+          .eq('status', 'waiting_for_courier_to_accept')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (fallbackError || !fallbackData) {
+          console.error('[OnlineScreen] Fallback rejected query also failed:', fallbackError);
+          setRejectedOffers([]);
+          return;
+        }
+
+        // Filter in JS — check if courier's ID appears in rejected_by_couriers
+        const rejected = fallbackData.filter((dr: any) => {
+          const rejectedList = dr.rejected_by_couriers || [];
+          return Array.isArray(rejectedList) &&
+            rejectedList.some((r: any) => r.courier_id === courier.id);
+        });
+
+        // Exclude any that are already in the openOffers list (they show there instead)
+        const openOfferIds = new Set(openOffers.map((o: any) => o.id));
+        const filtered = rejected.filter((dr: any) => !openOfferIds.has(dr.id));
+
+        setRejectedOffers(
+          filtered.map((dr: any) => {
+            const place = Array.isArray(dr.place) ? dr.place[0] : dr.place;
+            return {
+              ...dr,
+              place_name: place?.name || 'Unknown',
+            };
+          })
+        );
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setRejectedOffers([]);
+        return;
+      }
+
+      // Exclude any that are already in the openOffers list
+      const openOfferIds = new Set(openOffers.map((o: any) => o.id));
+      const filtered = data.filter((dr: any) => !openOfferIds.has(dr.id));
+
+      setRejectedOffers(
+        filtered.map((dr: any) => {
+          const place = Array.isArray(dr.place) ? dr.place[0] : dr.place;
+          return {
+            ...dr,
+            place_name: place?.name || 'Unknown',
+          };
+        })
+      );
+    } catch (err) {
+      console.error('[OnlineScreen] Error loading rejected offers:', err);
+      setRejectedOffers([]);
+    }
+  }, [courier?.id, openOffers]);
+
   // ── Load accepted (in-progress) deliveries ──────────────────────────────
 
   const loadAcceptedDeliveries = useCallback(async () => {
@@ -197,6 +293,12 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const loadAllData = useCallback(async () => {
     await Promise.all([loadStats(), loadOffers(), loadAcceptedDeliveries()]);
   }, [loadStats, loadOffers, loadAcceptedDeliveries]);
+
+  // ── Load rejected offers after openOffers are loaded ────────────────────
+
+  useEffect(() => {
+    loadRejectedOffers();
+  }, [openOffers]);
 
   // ── Initial load ────────────────────────────────────────────────────────
 
@@ -335,6 +437,13 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     onOfferPress?.(offer.id, offerType as 'open' | 'exclusive');
   };
 
+  // ── Rejected offer press (re-open the offer detail screen) ──────────────
+
+  const handleRejectedOfferPress = (offer: any) => {
+    console.log('[OnlineScreen] Rejected offer pressed:', offer.id);
+    onOfferPress?.(offer.id, 'open');
+  };
+
   // ── Accepted delivery press ─────────────────────────────────────────────
 
   const handleAcceptedPress = (deliveryId: string) => {
@@ -351,6 +460,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
   const profileImage = courier?.profile_picture_url || null;
   const totalOffers = openOffers.length;
+  const totalRejected = rejectedOffers.length;
 
   if (loading) {
     return (
@@ -511,6 +621,45 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         {/* No offers empty state */}
         {totalOffers === 0 && (
           <Text style={styles.noOffersText}>Sorry, you have no open offers.</Text>
+        )}
+
+        {/* ── Previously Rejected Section ── */}
+        {totalRejected > 0 && (
+          <>
+            <View style={[styles.sectionHeader, { marginTop: spacing.xl }]}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>
+                {totalRejected} Previously Rejected
+              </Text>
+            </View>
+
+            <Text style={styles.rejectedSubtext}>
+              You rejected these offers but they're still available. Tap to view again.
+            </Text>
+
+            {rejectedOffers.map((offer) => (
+              <TouchableOpacity
+                key={offer.id}
+                style={[styles.offerCard, { backgroundColor: cardBg, borderLeftWidth: 3, borderLeftColor: '#EF4444' }]}
+                onPress={() => handleRejectedOfferPress(offer)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.offerCardContent}>
+                  <View style={styles.offerInfo}>
+                    <Text style={[styles.offerPoints, { color: textColor }]}>
+                      {Math.round(offer.points_offered || 0).toLocaleString()} Points
+                    </Text>
+                    <Text style={[styles.offerDeliveryNumber, { color: textSecColor }]}>
+                      {offer.place_name || `Delivery #${offer.delivery_number || offer.id?.slice(-6).toUpperCase()}`}
+                    </Text>
+                    <Text style={[styles.offerDistance, { color: textSecColor }]}>
+                      {(offer.delivery_distance_km || 0).toFixed(1)}KM Away
+                    </Text>
+                  </View>
+                  {renderArriveInBadge(offer.pickup_eta)}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
         )}
 
         {/* ── Online Timer + Go Offline (hidden when active deliveries) ── */}
@@ -755,6 +904,16 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     paddingHorizontal: 16,
     marginTop: 4,
+  },
+
+  // Rejected offers subtext
+  rejectedSubtext: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    color: '#9CA3AF',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    lineHeight: 18,
   },
 
   // Offline section
