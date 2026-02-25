@@ -51,6 +51,11 @@ const DARK_MAP_STYLE = [
     stylers: [{ color: '#d59563' }],
   },
   {
+    featureType: 'poi',
+    elementType: 'labels.icon',
+    stylers: [{ visibility: 'off' }],
+  },
+  {
     featureType: 'poi.park',
     elementType: 'geometry',
     stylers: [{ color: '#263c3f' }],
@@ -651,17 +656,15 @@ export function OpenOfferScreen({
 
   const renderMapMarkers = () => (
     <>
-      {courierLocation && (
-        <Marker coordinate={courierLocation} title="You" anchor={{ x: 0.5, y: 0.5 }}>
-          <Image
-            source={{ uri: MARKER_COURIER }}
-            style={{ width: 40, height: 40 }}
-            resizeMode="contain"
-          />
-        </Marker>
-      )}
       {pickupCoord && (
-        <Marker coordinate={pickupCoord} title={place?.name || 'Pickup'}>
+        <Marker
+          key="marker-pickup"
+          identifier="marker-pickup"
+          coordinate={pickupCoord}
+          title={place?.name || 'Pickup'}
+          zIndex={1}
+          tracksViewChanges={false}
+        >
           <Image
             source={{ uri: MARKER_PICKUP }}
             style={{ width: 40, height: 40 }}
@@ -670,9 +673,33 @@ export function OpenOfferScreen({
         </Marker>
       )}
       {dropoffCoord && (
-        <Marker coordinate={dropoffCoord} title={delivery?.dropoff_address || 'Dropoff'}>
+        <Marker
+          key="marker-dropoff"
+          identifier="marker-dropoff"
+          coordinate={dropoffCoord}
+          title={delivery?.dropoff_address || 'Dropoff'}
+          zIndex={2}
+          tracksViewChanges={false}
+        >
           <Image
             source={{ uri: MARKER_DROPOFF }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+      {courierLocation && (
+        <Marker
+          key="marker-courier"
+          identifier="marker-courier"
+          coordinate={courierLocation}
+          title="You"
+          anchor={{ x: 0.5, y: 0.5 }}
+          zIndex={3}
+          tracksViewChanges={false}
+        >
+          <Image
+            source={{ uri: MARKER_COURIER }}
             style={{ width: 40, height: 40 }}
             resizeMode="contain"
           />
