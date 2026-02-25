@@ -234,6 +234,7 @@ export function OpenOfferScreen({
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMapFullscreen, setShowMapFullscreen] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const [delivery, setDelivery] = useState<DeliveryData | null>(null);
   const [place, setPlace] = useState<PlaceData | null>(null);
@@ -386,12 +387,13 @@ export function OpenOfferScreen({
     loadData();
   }, [loadData]);
 
-  // ── Fit map when courier location arrives ──────────────────────────────────
+  // ── Fit map when map is ready AND/OR courier location changes ─────────────
 
   useEffect(() => {
-    if (!courierLocation || !delivery) return;
+    if (!mapReady || !delivery) return;
 
-    const coords: CoordPoint[] = [courierLocation];
+    const coords: CoordPoint[] = [];
+    if (courierLocation) coords.push(courierLocation);
     if (delivery.pickup_latitude && delivery.pickup_longitude) {
       coords.push({ latitude: delivery.pickup_latitude, longitude: delivery.pickup_longitude });
     }
@@ -407,7 +409,7 @@ export function OpenOfferScreen({
         });
       }, 400);
     }
-  }, [courierLocation, delivery]);
+  }, [mapReady, courierLocation, delivery]);
 
   // ── Countdown timer (exclusive offers) ─────────────────────────────────────
 
@@ -663,7 +665,6 @@ export function OpenOfferScreen({
           coordinate={pickupCoord}
           title={place?.name || 'Pickup'}
           zIndex={1}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_PICKUP }}
@@ -679,7 +680,6 @@ export function OpenOfferScreen({
           coordinate={dropoffCoord}
           title={delivery?.dropoff_address || 'Dropoff'}
           zIndex={2}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_DROPOFF }}
@@ -696,7 +696,6 @@ export function OpenOfferScreen({
           title="You"
           anchor={{ x: 0.5, y: 0.5 }}
           zIndex={3}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_COURIER }}
@@ -977,7 +976,7 @@ export function OpenOfferScreen({
             pitchEnabled={false}
             toolbarEnabled={false}
             pointerEvents="none"
-            onMapReady={() => fitMap(mapRef.current)}
+            onMapReady={() => setMapReady(true)}
           >
             {renderMapMarkers()}
           </MapView>

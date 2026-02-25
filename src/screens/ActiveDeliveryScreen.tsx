@@ -743,7 +743,6 @@ export function ActiveDeliveryScreen({
           coordinate={pickupCoord}
           title={place?.name || 'Pickup'}
           zIndex={1}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_PICKUP }}
@@ -759,7 +758,6 @@ export function ActiveDeliveryScreen({
           coordinate={dropoffCoord}
           title={delivery.dropoff_address || 'Dropoff'}
           zIndex={2}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_DROPOFF }}
@@ -776,7 +774,6 @@ export function ActiveDeliveryScreen({
           title="You"
           anchor={{ x: 0.5, y: 0.5 }}
           zIndex={3}
-          tracksViewChanges={false}
         >
           <Image
             source={{ uri: MARKER_COURIER }}
