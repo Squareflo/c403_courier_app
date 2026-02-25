@@ -5,6 +5,7 @@ import {
   Dimensions,
   Image,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,15 +14,108 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, User, ZapOff } from 'lucide-react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { ChevronLeft, User, X, ZapOff } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 import { getCurrentLocation } from '../services/locationService';
 import { PlaceCard } from '../components/ui/PlaceCard';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-// Edge functions are called via supabase.functions.invoke() — no raw URL/key needed
+
+// ── Map marker icons ─────────────────────────────────────────────────────────
+
+const MARKER_COURIER =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772022321/map-icon-green-courier_nrnxkv.png';
+const MARKER_PICKUP =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png';
+const MARKER_DROPOFF =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772029798/customer-drop-off-location_gsvl82.png';
+
+// ── Dark mode map style ──────────────────────────────────────────────────────
+
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+  {
+    featureType: 'administrative.locality',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#263c3f' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6b9a76' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#38414e' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#212a37' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#9ca5b3' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#746855' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#1f2835' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#f3d19c' }],
+  },
+  {
+    featureType: 'transit',
+    elementType: 'geometry',
+    stylers: [{ color: '#2f3948' }],
+  },
+  {
+    featureType: 'transit.station',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#17263c' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#515c6d' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#17263c' }],
+  },
+];
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +176,11 @@ interface DeliveryOfferData {
   courier_id: string | null;
 }
 
+interface CoordPoint {
+  latitude: number;
+  longitude: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function calculateDistanceKm(
@@ -120,17 +219,22 @@ export function OpenOfferScreen({
   isForced = false,
 }: OpenOfferScreenProps) {
   const { courier, refreshCourier } = useAuth();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView | null>(null);
+  const fullscreenMapRef = useRef<MapView | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMapFullscreen, setShowMapFullscreen] = useState(false);
 
   const [delivery, setDelivery] = useState<DeliveryData | null>(null);
   const [place, setPlace] = useState<PlaceData | null>(null);
   const [deliveryOffer, setDeliveryOffer] = useState<DeliveryOfferData | null>(null);
   const [distanceToPickupKm, setDistanceToPickupKm] = useState<number | null>(null);
+  const [courierLocation, setCourierLocation] = useState<CoordPoint | null>(null);
 
   // Countdown for exclusive offers
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -213,47 +317,92 @@ export function OpenOfferScreen({
         }
       }
 
-      // 4. Calculate distance to pickup using courier's current location
+      // Show screen immediately — GPS loads in background
+      setLoading(false);
+
+      // 4. Background: get courier location
+      loadCourierLocation(raw);
+    } catch (err) {
+      console.error('[OpenOfferScreen] Unexpected error:', err);
+      setError('Failed to load delivery details');
+      setLoading(false);
+    }
+  }, [courier?.id, deliveryRequestId]);
+
+  /** Background task: GPS location (never blocks UI) */
+  const loadCourierLocation = useCallback(
+    async (raw: any) => {
+      let courierLoc: CoordPoint | null = null;
+
+      // Try GPS first
       try {
         const loc = await getCurrentLocation();
-        if (loc && raw.pickup_latitude && raw.pickup_longitude) {
-          const dist = calculateDistanceKm(
-            loc.coords.latitude,
-            loc.coords.longitude,
-            raw.pickup_latitude,
-            raw.pickup_longitude,
-          );
-          setDistanceToPickupKm(dist);
+        if (loc) {
+          courierLoc = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
         }
       } catch (locErr) {
-        console.warn('[OpenOfferScreen] Could not get location:', locErr);
-        // If we can't get location, try from courier profile
-        if (
-          courier.current_location_latitude &&
-          courier.current_location_longitude &&
-          raw.pickup_latitude &&
-          raw.pickup_longitude
-        ) {
+        console.warn('[OpenOfferScreen] GPS unavailable:', locErr);
+      }
+
+      // Fallback to courier profile location
+      if (
+        !courierLoc &&
+        courier?.current_location_latitude &&
+        courier?.current_location_longitude
+      ) {
+        courierLoc = {
+          latitude: courier.current_location_latitude,
+          longitude: courier.current_location_longitude,
+        };
+      }
+
+      if (courierLoc) {
+        setCourierLocation(courierLoc);
+
+        // Calculate straight-line distance to pickup
+        if (raw.pickup_latitude && raw.pickup_longitude) {
           const dist = calculateDistanceKm(
-            courier.current_location_latitude,
-            courier.current_location_longitude,
+            courierLoc.latitude,
+            courierLoc.longitude,
             raw.pickup_latitude,
             raw.pickup_longitude,
           );
           setDistanceToPickupKm(dist);
         }
       }
-    } catch (err) {
-      console.error('[OpenOfferScreen] Unexpected error:', err);
-      setError('Failed to load delivery details');
-    } finally {
-      setLoading(false);
-    }
-  }, [courier?.id, deliveryRequestId]);
+    },
+    [courier?.current_location_latitude, courier?.current_location_longitude],
+  );
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // ── Fit map when courier location arrives ──────────────────────────────────
+
+  useEffect(() => {
+    if (!courierLocation || !delivery) return;
+
+    const coords: CoordPoint[] = [courierLocation];
+    if (delivery.pickup_latitude && delivery.pickup_longitude) {
+      coords.push({ latitude: delivery.pickup_latitude, longitude: delivery.pickup_longitude });
+    }
+    if (delivery.dropoff_latitude && delivery.dropoff_longitude) {
+      coords.push({ latitude: delivery.dropoff_latitude, longitude: delivery.dropoff_longitude });
+    }
+
+    if (coords.length >= 2 && mapRef.current) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(coords, {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: true,
+        });
+      }, 400);
+    }
+  }, [courierLocation, delivery]);
 
   // ── Countdown timer (exclusive offers) ─────────────────────────────────────
 
@@ -466,6 +615,83 @@ export function OpenOfferScreen({
   const minutesUntilPickup = calculateMinutesUntilPickup(delivery?.pickup_eta || null);
   const deliveryDistKm = delivery?.delivery_distance_km || null;
 
+  // Map coordinates
+  const pickupCoord =
+    delivery?.pickup_latitude && delivery?.pickup_longitude
+      ? { latitude: delivery.pickup_latitude, longitude: delivery.pickup_longitude }
+      : null;
+
+  const dropoffCoord =
+    delivery?.dropoff_latitude && delivery?.dropoff_longitude
+      ? { latitude: delivery.dropoff_latitude, longitude: delivery.dropoff_longitude }
+      : null;
+
+  // Fallback region before fitToCoordinates runs
+  const fallbackRegion = pickupCoord
+    ? {
+        latitude: pickupCoord.latitude,
+        longitude: pickupCoord.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }
+    : {
+        latitude: 50.4452,
+        longitude: -104.6189,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+
+  // Collect all valid coords for fitToCoordinates
+  const allMapCoords: CoordPoint[] = [];
+  if (courierLocation) allMapCoords.push(courierLocation);
+  if (pickupCoord) allMapCoords.push(pickupCoord);
+  if (dropoffCoord) allMapCoords.push(dropoffCoord);
+
+  // ── Shared map markers renderer ────────────────────────────────────────────
+
+  const renderMapMarkers = () => (
+    <>
+      {courierLocation && (
+        <Marker coordinate={courierLocation} title="You" anchor={{ x: 0.5, y: 0.5 }}>
+          <Image
+            source={{ uri: MARKER_COURIER }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+      {pickupCoord && (
+        <Marker coordinate={pickupCoord} title={place?.name || 'Pickup'}>
+          <Image
+            source={{ uri: MARKER_PICKUP }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+      {dropoffCoord && (
+        <Marker coordinate={dropoffCoord} title={delivery?.dropoff_address || 'Dropoff'}>
+          <Image
+            source={{ uri: MARKER_DROPOFF }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+    </>
+  );
+
+  /** Fit all markers on the given map ref */
+  const fitMap = (ref: MapView | null) => {
+    if (!ref || allMapCoords.length < 2) return;
+    setTimeout(() => {
+      ref.fitToCoordinates(allMapCoords, {
+        edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+        animated: false,
+      });
+    }, 300);
+  };
+
   // ── Loading ────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -488,7 +714,8 @@ export function OpenOfferScreen({
             Delivery Accepted By Another Courier
           </Text>
           <Text style={[styles.centeredSubtitle, { color: textSecColor }]}>
-            Another courier has accepted this delivery. You can return to view other available deliveries.
+            Another courier has accepted this delivery. You can return to view other available
+            deliveries.
           </Text>
           <TouchableOpacity
             style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
@@ -627,10 +854,7 @@ export function OpenOfferScreen({
 
         {/* ── Restaurant card (PlaceCard component) ── */}
         {place && (
-          <PlaceCard
-            place={place}
-            containerStyle={{ marginHorizontal: 0 }}
-          />
+          <PlaceCard place={place} containerStyle={{ marginHorizontal: 0 }} />
         )}
 
         {/* ── To Pickup + Delivery Dist (side by side) ── */}
@@ -706,15 +930,69 @@ export function OpenOfferScreen({
           </Text>
         )}
 
-        {/* ── Map placeholder ── */}
-        <View style={[styles.mapPlaceholder, { backgroundColor: cardBg }]}>
-          <Text style={[styles.mapPlaceholderText, { color: textSecColor }]}>
-            Map coming soon
-          </Text>
-        </View>
+        {/* ── Map (locked – tap to expand) ── */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => setShowMapFullscreen(true)}
+          style={[styles.mapContainer, { backgroundColor: cardBg }]}
+        >
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={fallbackRegion}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            customMapStyle={DARK_MAP_STYLE}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+            toolbarEnabled={false}
+            pointerEvents="none"
+            onMapReady={() => fitMap(mapRef.current)}
+          >
+            {renderMapMarkers()}
+          </MapView>
+          <View style={styles.mapTapHint}>
+            <Text style={styles.mapTapHintText}>Tap to expand</Text>
+          </View>
+        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ── Fullscreen Map Modal ── */}
+      <Modal
+        visible={showMapFullscreen}
+        animationType="slide"
+        onRequestClose={() => setShowMapFullscreen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <MapView
+            ref={fullscreenMapRef}
+            style={{ flex: 1 }}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={fallbackRegion}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            customMapStyle={DARK_MAP_STYLE}
+            onMapReady={() => fitMap(fullscreenMapRef.current)}
+          >
+            {renderMapMarkers()}
+          </MapView>
+          <TouchableOpacity
+            style={[
+              styles.mapCloseButton,
+              { top: insets.top + 12, backgroundColor: isDark ? '#FFFFFF' : '#000000' },
+            ]}
+            onPress={() => setShowMapFullscreen(false)}
+            activeOpacity={0.8}
+          >
+            <X size={20} color={isDark ? '#000000' : '#FFFFFF'} strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -882,16 +1160,37 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // Map placeholder
-  mapPlaceholder: {
+  // Map
+  mapContainer: {
     borderRadius: 16,
-    height: 220,
+    overflow: 'hidden',
+    height: 280,
+  },
+  map: {
+    flex: 1,
+  },
+  mapTapHint: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  mapTapHintText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+  mapCloseButton: {
+    position: 'absolute',
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  mapPlaceholderText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 14,
   },
 
   // Centered messages (errors, accepted by another)

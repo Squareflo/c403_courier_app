@@ -25,6 +25,15 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// —— Map marker icons ————————————————————————————————————————————
+
+const MARKER_COURIER =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772022321/map-icon-green-courier_nrnxkv.png';
+const MARKER_PICKUP =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png';
+const MARKER_DROPOFF =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772029798/customer-drop-off-location_gsvl82.png';
+
 // —— Types ——————————————————————————————————————————————————————————
 
 interface ActiveDeliveryScreenProps {
@@ -285,6 +294,7 @@ export function ActiveDeliveryScreen({
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
+  const fullscreenMapRef = useRef<MapView | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -298,9 +308,8 @@ export function ActiveDeliveryScreen({
   const [courierLocation, setCourierLocation] = useState<RouteCoord | null>(null);
   const [routeCoords, setRouteCoords] = useState<RouteCoord[]>([]);
 
-  // —— Open Offers state ——————————————————————————————————————————
+  // —— Open Offers state (exclusive offers handled by MainLayout forced screen) ——
   const [openOffers, setOpenOffers] = useState<any[]>([]);
-  const [exclusiveOffer, setExclusiveOffer] = useState<any>(null);
 
   // —— Load delivery data ——————————————————————————————————————
 
@@ -403,6 +412,29 @@ export function ActiveDeliveryScreen({
     loadData();
   }, [loadData]);
 
+  // —— Fit map when courier location arrives ——————————————————————
+
+  useEffect(() => {
+    if (!courierLocation || !delivery) return;
+
+    const coords: RouteCoord[] = [courierLocation];
+    if (delivery.pickup_latitude && delivery.pickup_longitude) {
+      coords.push({ latitude: delivery.pickup_latitude, longitude: delivery.pickup_longitude });
+    }
+    if (delivery.dropoff_latitude && delivery.dropoff_longitude) {
+      coords.push({ latitude: delivery.dropoff_latitude, longitude: delivery.dropoff_longitude });
+    }
+
+    if (coords.length >= 2 && mapRef.current) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(coords, {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: true,
+        });
+      }, 400);
+    }
+  }, [courierLocation, delivery]);
+
   // —— Load open offers via RPC ————————————————————————————————————
 
   const loadOffers = useCallback(async () => {
@@ -415,30 +447,17 @@ export function ActiveDeliveryScreen({
 
       if (error) {
         console.error('[ActiveDelivery] Error fetching offers:', error);
-        setExclusiveOffer(null);
         setOpenOffers([]);
         return;
       }
 
       if (!data || data.length === 0) {
-        setExclusiveOffer(null);
         setOpenOffers([]);
         return;
       }
 
-      const exclusive = data.find((r: any) => r.offer_data?.type === 'exclusive');
+      // Only show open offers — exclusive offers are handled by MainLayout forced screen
       const open = data.filter((r: any) => r.offer_data?.type === 'open');
-
-      if (exclusive) {
-        setExclusiveOffer({
-          ...exclusive.delivery_data,
-          place_name: exclusive.place_name,
-          customer_name: exclusive.customer_name,
-          delivery_offer: exclusive.offer_data,
-        });
-      } else {
-        setExclusiveOffer(null);
-      }
 
       if (open.length > 0) {
         setOpenOffers(
@@ -454,7 +473,6 @@ export function ActiveDeliveryScreen({
       }
     } catch (err) {
       console.error('[ActiveDelivery] Error loading offers:', err);
-      setExclusiveOffer(null);
       setOpenOffers([]);
     }
   }, [courier?.id]);
@@ -622,7 +640,7 @@ export function ActiveDeliveryScreen({
   const badgeColor = STATUS_COLORS[delivery?.status || ''] || '#6B7280';
   const badgeLabel = STATUS_LABELS[delivery?.status || ''] || delivery?.status || '';
 
-  const totalOffers = (exclusiveOffer ? 1 : 0) + openOffers.length;
+  const totalOffers = openOffers.length;
 
   // —— Loading ———————————————————————————————————————————————————
 
@@ -657,7 +675,7 @@ export function ActiveDeliveryScreen({
     );
   }
 
-  // —— Map region ————————————————————————————————————————————————
+  // —— Map coordinates ————————————————————————————————————————————
 
   const pickupCoord = delivery.pickup_latitude && delivery.pickup_longitude
     ? { latitude: delivery.pickup_latitude, longitude: delivery.pickup_longitude }
@@ -677,26 +695,13 @@ export function ActiveDeliveryScreen({
     ? (delivery.dropoff_address || 'Dropoff')
     : (place?.name || 'Pickup');
 
-  const mapRegion = courierLocation && destinationCoord
-    ? {
-        latitude: (courierLocation.latitude + destinationCoord.latitude) / 2,
-        longitude: (courierLocation.longitude + destinationCoord.longitude) / 2,
-        latitudeDelta: Math.max(Math.abs(courierLocation.latitude - destinationCoord.latitude) * 2.5, 0.015),
-        longitudeDelta: Math.max(Math.abs(courierLocation.longitude - destinationCoord.longitude) * 2.5, 0.015),
-      }
-    : destinationCoord
-    ? {
-        latitude: destinationCoord.latitude,
-        longitude: destinationCoord.longitude,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-      }
-    : pickupCoord
+  // Fallback region before fitToCoordinates runs
+  const fallbackRegion = pickupCoord
     ? {
         latitude: pickupCoord.latitude,
         longitude: pickupCoord.longitude,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
+        latitudeDelta: 0.03,
+        longitudeDelta: 0.03,
       }
     : {
         latitude: 50.4452,
@@ -704,6 +709,61 @@ export function ActiveDeliveryScreen({
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       };
+
+  // Collect all visible coords for fitToCoordinates
+  const allMapCoords: RouteCoord[] = [];
+  if (courierLocation) allMapCoords.push(courierLocation);
+  if (pickupCoord) allMapCoords.push(pickupCoord);
+  if (dropoffCoord) allMapCoords.push(dropoffCoord);
+
+  /** Fit all markers on the given map ref */
+  const fitMap = (ref: MapView | null) => {
+    if (!ref || allMapCoords.length < 2) return;
+    setTimeout(() => {
+      ref.fitToCoordinates(allMapCoords, {
+        edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+        animated: false,
+      });
+    }, 300);
+  };
+
+  // —— Shared map markers renderer ————————————————————————————————
+
+  const renderMapMarkers = () => (
+    <>
+      {courierLocation && (
+        <Marker
+          coordinate={courierLocation}
+          title="You"
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          <Image
+            source={{ uri: MARKER_COURIER }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+      {pickupCoord && (
+        <Marker coordinate={pickupCoord} title={place?.name || 'Pickup'}>
+          <Image
+            source={{ uri: MARKER_PICKUP }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+      {dropoffCoord && (
+        <Marker coordinate={dropoffCoord} title={delivery.dropoff_address || 'Dropoff'}>
+          <Image
+            source={{ uri: MARKER_DROPOFF }}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+          />
+        </Marker>
+      )}
+    </>
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: bg }]}>
@@ -794,7 +854,7 @@ export function ActiveDeliveryScreen({
             <TouchableOpacity
               style={styles.atPickupButton}
               onPress={handleArrivedAtPickup}
-              disabled={updatingStatus}
+              disabled={updatingStatus || delivery.status !== 'accepted_by_courier'}
               activeOpacity={0.7}
             >
               {updatingStatus ? (
@@ -835,7 +895,7 @@ export function ActiveDeliveryScreen({
             ref={mapRef}
             style={styles.map}
             provider={PROVIDER_GOOGLE}
-            region={mapRegion}
+            initialRegion={fallbackRegion}
             showsUserLocation={false}
             showsMyLocationButton={false}
             customMapStyle={DARK_MAP_STYLE}
@@ -845,36 +905,9 @@ export function ActiveDeliveryScreen({
             pitchEnabled={false}
             toolbarEnabled={false}
             pointerEvents="none"
+            onMapReady={() => fitMap(mapRef.current)}
           >
-            {courierLocation && (
-              <Marker
-                coordinate={courierLocation}
-                title="You"
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/chowlocal/image/upload/v1772022321/map-icon-green-courier_nrnxkv.png' }}
-                  style={{ width: 40, height: 40 }}
-                  resizeMode="contain"
-                />
-              </Marker>
-            )}
-            {destinationCoord && !isHeadingToDropoff && (
-              <Marker coordinate={destinationCoord} title={destinationLabel}>
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png' }}
-                  style={{ width: 40, height: 40 }}
-                  resizeMode="contain"
-                />
-              </Marker>
-            )}
-            {destinationCoord && isHeadingToDropoff && (
-              <Marker
-                coordinate={destinationCoord}
-                title={destinationLabel}
-                pinColor="#06B6D4"
-              />
-            )}
+            {renderMapMarkers()}
             {routeCoords.length > 0 && (
               <Polyline coordinates={routeCoords} strokeColor="#4285F4" strokeWidth={4} />
             )}
@@ -892,30 +925,6 @@ export function ActiveDeliveryScreen({
                 {totalOffers} Open Offer{totalOffers !== 1 ? 's' : ''}
               </Text>
             </View>
-
-            {/* Exclusive Offer */}
-            {exclusiveOffer && (
-              <TouchableOpacity
-                style={[styles.offerCard, { backgroundColor: cardBg }]}
-                onPress={() => handleOfferPress(exclusiveOffer)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.offerCardContent}>
-                  <View style={styles.offerInfo}>
-                    <Text style={[styles.offerPoints, { color: textColor }]}>
-                      {Math.round(exclusiveOffer.points_offered || 0).toLocaleString()} Points
-                    </Text>
-                    <Text style={[styles.offerPlaceName, { color: textSecColor }]}>
-                      {exclusiveOffer.place_name || `Delivery #${exclusiveOffer.delivery_number || exclusiveOffer.id?.slice(-6).toUpperCase()}`}
-                    </Text>
-                    <Text style={[styles.offerDistance, { color: textSecColor }]}>
-                      {(exclusiveOffer.delivery_distance_km || 0).toFixed(1)}KM Away
-                    </Text>
-                  </View>
-                  {renderArriveInBadge(exclusiveOffer.pickup_eta)}
-                </View>
-              </TouchableOpacity>
-            )}
 
             {/* Open Offers */}
             {openOffers.map((offer) => (
@@ -955,42 +964,16 @@ export function ActiveDeliveryScreen({
       >
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <MapView
+            ref={fullscreenMapRef}
             style={{ flex: 1 }}
             provider={PROVIDER_GOOGLE}
-            initialRegion={mapRegion}
+            initialRegion={fallbackRegion}
             showsUserLocation={false}
             showsMyLocationButton={false}
             customMapStyle={DARK_MAP_STYLE}
+            onMapReady={() => fitMap(fullscreenMapRef.current)}
           >
-            {courierLocation && (
-              <Marker
-                coordinate={courierLocation}
-                title="You"
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/chowlocal/image/upload/v1772022321/map-icon-green-courier_nrnxkv.png' }}
-                  style={{ width: 40, height: 40 }}
-                  resizeMode="contain"
-                />
-              </Marker>
-            )}
-            {destinationCoord && !isHeadingToDropoff && (
-              <Marker coordinate={destinationCoord} title={destinationLabel}>
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/chowlocal/image/upload/v1772021304/map-icon-purple-place_slcoj1.png' }}
-                  style={{ width: 40, height: 40 }}
-                  resizeMode="contain"
-                />
-              </Marker>
-            )}
-            {destinationCoord && isHeadingToDropoff && (
-              <Marker
-                coordinate={destinationCoord}
-                title={destinationLabel}
-                pinColor="#06B6D4"
-              />
-            )}
+            {renderMapMarkers()}
             {routeCoords.length > 0 && (
               <Polyline coordinates={routeCoords} strokeColor="#4285F4" strokeWidth={4} />
             )}
