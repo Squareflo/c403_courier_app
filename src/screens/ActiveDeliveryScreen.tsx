@@ -58,6 +58,14 @@ interface PlaceData {
   phone_number: string | null;
 }
 
+interface CustomerData {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone_number: string | null;
+  profile_picture_url: string | null;
+}
+
 interface DeliveryData {
   id: string;
   delivery_number: string | null;
@@ -311,7 +319,9 @@ export function ActiveDeliveryScreen({
 
   const [delivery, setDelivery] = useState<DeliveryData | null>(null);
   const [place, setPlace] = useState<PlaceData | null>(null);
+  const [customer, setCustomer] = useState<CustomerData | null>(null);
   const [distanceToPickupKm, setDistanceToPickupKm] = useState<number | null>(null);
+  const [distanceToDropoffKm, setDistanceToDropoffKm] = useState<number | null>(null);
   const [courierLocation, setCourierLocation] = useState<RouteCoord | null>(null);
   const [routeCoords, setRouteCoords] = useState<RouteCoord[]>([]);
 
@@ -340,6 +350,9 @@ export function ActiveDeliveryScreen({
              id, name, address_line_1, city, state,
              profile_picture_url, photos, rating, average_rating,
              total_reviews, phone_number
+           ),
+           customer:customer_id (
+             id, first_name, last_name, phone_number, profile_picture_url
            )`,
         )
         .eq('id', deliveryRequestId)
@@ -354,9 +367,11 @@ export function ActiveDeliveryScreen({
 
       const raw = drData as any;
       const placeRaw = Array.isArray(raw.place) ? raw.place[0] : raw.place;
+      const customerRaw = Array.isArray(raw.customer) ? raw.customer[0] : raw.customer;
 
       setDelivery(raw as DeliveryData);
       setPlace(placeRaw as PlaceData);
+      setCustomer(customerRaw as CustomerData || null);
 
       // ✅ Show screen immediately — GPS + route load in background
       setLoading(false);
@@ -399,19 +414,22 @@ export function ActiveDeliveryScreen({
 
     setCourierLocation(courierLoc);
 
-    // Calculate straight-line distance
+    // Calculate straight-line distance to pickup
     if (raw.pickup_latitude && raw.pickup_longitude) {
       const dist = calculateDistanceKm(
         courierLoc.latitude, courierLoc.longitude,
         raw.pickup_latitude, raw.pickup_longitude,
       );
       setDistanceToPickupKm(dist);
+    }
 
-      // Route polyline — disabled for now (edge function not deployed yet)
-      // fetchRoute(courierLoc, {
-      //   latitude: raw.pickup_latitude,
-      //   longitude: raw.pickup_longitude,
-      // });
+    // Calculate straight-line distance to dropoff
+    if (raw.dropoff_latitude && raw.dropoff_longitude) {
+      const distDrop = calculateDistanceKm(
+        courierLoc.latitude, courierLoc.longitude,
+        raw.dropoff_latitude, raw.dropoff_longitude,
+      );
+      setDistanceToDropoffKm(distDrop);
     }
   }, [courier?.current_location_latitude, courier?.current_location_longitude]);
 
@@ -553,6 +571,7 @@ export function ActiveDeliveryScreen({
   // —— Refresh minutes timer —————————————————————————————————————
 
   const [minutesUntilPickup, setMinutesUntilPickup] = useState<number | null>(null);
+  const [minutesUntilDropoff, setMinutesUntilDropoff] = useState<number | null>(null);
 
   useEffect(() => {
     if (!delivery?.pickup_eta) return;
@@ -562,6 +581,15 @@ export function ActiveDeliveryScreen({
     const interval = setInterval(update, 30000);
     return () => clearInterval(interval);
   }, [delivery?.pickup_eta]);
+
+  useEffect(() => {
+    if (!delivery?.drop_off_eta) return;
+
+    const update = () => setMinutesUntilDropoff(calculateMinutesUntil(delivery.drop_off_eta));
+    update();
+    const interval = setInterval(update, 30000);
+    return () => clearInterval(interval);
+  }, [delivery?.drop_off_eta]);
 
   // —— Status update: Arrived at Pickup ——————————————————————————
 
@@ -590,6 +618,60 @@ export function ActiveDeliveryScreen({
     } finally {
       setUpdatingStatus(false);
     }
+  };
+
+  // —— Status update: Received order (mark en_route) ——————————————
+
+  const handleReceivedOrder = async () => {
+    if (!delivery) return;
+    setUpdatingStatus(true);
+    setError(null);
+
+    try {
+      const { error: statusError } = await supabase.functions.invoke('update-delivery-status', {
+        body: {
+          delivery_request_id: deliveryRequestId,
+          new_status: 'en_route',
+        },
+      });
+
+      if (statusError) {
+        console.error('[ActiveDelivery] Status update error:', statusError);
+        setError('Failed to update status. Please try again.');
+      } else {
+        await loadData();
+      }
+    } catch (err) {
+      console.error('[ActiveDelivery] Error updating status:', err);
+      setError('Failed to update status. Please try again.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // —— Open directions to DROPOFF in Google Maps ——————————————————
+
+  const handleDirectionsToDropoff = () => {
+    if (!delivery?.dropoff_latitude || !delivery?.dropoff_longitude) return;
+
+    const destination = `${delivery.dropoff_latitude},${delivery.dropoff_longitude}`;
+    let url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+
+    if (courierLocation) {
+      url += `&origin=${courierLocation.latitude},${courierLocation.longitude}`;
+    }
+
+    Linking.openURL(url);
+  };
+
+  // —— Call customer ——————————————————————————————————————————————
+
+  const handleCallCustomer = () => {
+    if (!customer?.phone_number) {
+      Alert.alert('No Phone Number', 'Phone number not available for this customer.');
+      return;
+    }
+    Linking.openURL(`tel:${customer.phone_number}`);
   };
 
   // —— Open directions in Google Maps ——————————————————————————————
@@ -648,6 +730,10 @@ export function ActiveDeliveryScreen({
   const badgeLabel = STATUS_LABELS[delivery?.status || ''] || delivery?.status || '';
 
   const totalOffers = openOffers.length;
+
+  const isAtPickup = delivery?.status === 'arrived_at_pickup';
+  const customerName = customer?.first_name || 'Customer';
+  const customerPhoto = customer?.profile_picture_url || null;
 
   // —— Loading ———————————————————————————————————————————————————
 
@@ -847,66 +933,154 @@ export function ActiveDeliveryScreen({
           </View>
         </View>
 
-        {/* —— Restaurant card (PlaceCard component) —— */}
-        {place && (
-          <TouchableOpacity
-            onPress={() => { tapFeedback(); handleCallRestaurant(); }}
-            activeOpacity={0.7}
-          >
-            <PlaceCard
-              place={place}
-              containerStyle={{ marginHorizontal: 0 }}
-              rightAction={
-                <View style={styles.phoneButton}>
-                  <Phone size={22} color={textColor} />
+        {/* ═══ STATUS: arrived_at_pickup ═══ */}
+        {isAtPickup ? (
+          <>
+            {/* —— Customer card + Ready In row —— */}
+            <View style={styles.twoColRow}>
+              {/* Customer card */}
+              <TouchableOpacity
+                onPress={() => { tapFeedback(); handleCallCustomer(); }}
+                activeOpacity={0.7}
+                style={[styles.customerCard, { backgroundColor: cardBg }]}
+              >
+                <View style={styles.customerCardInner}>
+                  {customerPhoto ? (
+                    <Image source={{ uri: customerPhoto }} style={styles.customerPhoto} />
+                  ) : (
+                    <View style={[styles.customerPhoto, styles.customerPhotoPlaceholder]}>
+                      <Text style={styles.customerPhotoInitial}>
+                        {customerName[0]?.toUpperCase() || '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.customerInfo}>
+                    <Text style={[styles.cardLabel, { color: textSecColor }]}>Customer</Text>
+                    <Text style={[styles.customerName, { color: textColor }]} numberOfLines={1}>
+                      {customerName}
+                    </Text>
+                  </View>
+                  <Phone size={24} color={textColor} />
                 </View>
-              }
-            />
-          </TouchableOpacity>
+              </TouchableOpacity>
+
+              {/* Ready In + RECEIVED */}
+              <View style={[styles.readyInCard, { backgroundColor: cardBg }]}>
+                <Text style={[styles.cardLabel, { color: textSecColor }]}>Ready In</Text>
+                <View style={styles.readyInRow}>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {minutesUntilPickup !== null ? `${minutesUntilPickup}Min` : '—'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.receivedButton}
+                    onPress={() => { tapFeedback(); handleReceivedOrder(); }}
+                    disabled={updatingStatus}
+                    activeOpacity={0.7}
+                  >
+                    {updatingStatus ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Text style={styles.receivedButtonText}>RECEIVED</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* —— Drop-off Address + To Drop Off row —— */}
+            <View style={styles.twoColRow}>
+              {/* Drop-off Address card */}
+              <View style={[styles.dropoffAddressCard, { backgroundColor: cardBg }]}>
+                <Text style={[styles.cardLabel, { color: textSecColor }]}>Drop-off Address</Text>
+                <Text style={[styles.dropoffAddressText, { color: textColor }]} numberOfLines={2}>
+                  {delivery.dropoff_address || '—'}
+                </Text>
+              </View>
+
+              {/* To Drop Off + DIRECTIONS */}
+              <View style={[styles.toDropOffCard, { backgroundColor: cardBg }]}>
+                <Text style={[styles.cardLabel, { color: textSecColor }]}>To Drop Off</Text>
+                <View style={styles.toDropOffRow}>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {distanceToDropoffKm !== null ? `${distanceToDropoffKm.toFixed(1)}Km` : '—'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.directionsButton}
+                    onPress={() => { tapFeedback(); handleDirectionsToDropoff(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* ═══ STATUS: accepted_by_courier (default) ═══ */}
+
+            {/* —— Restaurant card —— */}
+            {place && (
+              <TouchableOpacity
+                onPress={() => { tapFeedback(); handleCallRestaurant(); }}
+                activeOpacity={0.7}
+              >
+                <PlaceCard
+                  place={place}
+                  containerStyle={{ marginHorizontal: 0 }}
+                  rightAction={
+                    <View style={styles.phoneButton}>
+                      <Phone size={22} color={textColor} />
+                    </View>
+                  }
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* —— Arrive In + AT PICKUP (inline row) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>Arrive In</Text>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {minutesUntilPickup !== null ? `${minutesUntilPickup}Min` : '—'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.atPickupButton}
+                  onPress={() => { tapFeedback(); handleArrivedAtPickup(); }}
+                  disabled={updatingStatus || delivery.status !== 'accepted_by_courier'}
+                  activeOpacity={0.7}
+                >
+                  {updatingStatus ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.atPickupButtonText}>AT PICKUP</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* —— To Pickup + DIRECTIONS (inline row) —— */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <View style={styles.inlineRow}>
+                <View style={styles.inlineLeft}>
+                  <Text style={[styles.cardLabel, { color: textSecColor }]}>To Pickup</Text>
+                  <Text style={[styles.cardBigValue, { color: textColor }]}>
+                    {distanceToPickupKm !== null ? `${distanceToPickupKm.toFixed(1)}Km` : '—'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.directionsButton}
+                  onPress={() => { tapFeedback(); handleDirections(); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
         )}
-
-        {/* —— Arrive In + AT PICKUP (inline row) —— */}
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
-          <View style={styles.inlineRow}>
-            <View style={styles.inlineLeft}>
-              <Text style={[styles.cardLabel, { color: textSecColor }]}>Arrive In</Text>
-              <Text style={[styles.cardBigValue, { color: textColor }]}>
-                {minutesUntilPickup !== null ? `${minutesUntilPickup}Min` : '—'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.atPickupButton}
-              onPress={() => { tapFeedback(); handleArrivedAtPickup(); }}
-              disabled={updatingStatus || delivery.status !== 'accepted_by_courier'}
-              activeOpacity={0.7}
-            >
-              {updatingStatus ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.atPickupButtonText}>AT PICKUP</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* —— To Pickup + DIRECTIONS (inline row) —— */}
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
-          <View style={styles.inlineRow}>
-            <View style={styles.inlineLeft}>
-              <Text style={[styles.cardLabel, { color: textSecColor }]}>To Pickup</Text>
-              <Text style={[styles.cardBigValue, { color: textColor }]}>
-                {distanceToPickupKm !== null ? `${distanceToPickupKm.toFixed(1)}Km` : '—'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.directionsButton}
-              onPress={() => { tapFeedback(); handleDirections(); }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.directionsButtonText}>DIRECTIONS</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* —— Map (locked – tap to expand) —— */}
         <TouchableOpacity
@@ -1143,7 +1317,7 @@ const styles = StyleSheet.create({
 
   // Directions button (same width as AT PICKUP)
   directionsButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
     borderRadius: 8,
     paddingVertical: 12,
     width: ACTION_BTN_WIDTH,
@@ -1153,8 +1327,95 @@ const styles = StyleSheet.create({
   directionsButtonText: {
     fontFamily: fontFamily.bold,
     fontSize: 14,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+
+  // —— Arrived at Pickup layout ——
+
+  twoColRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  customerCard: {
+    flex: 1.2,
+    borderRadius: 12,
+    padding: 14,
+  },
+  customerCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  customerPhoto: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+  },
+  customerPhotoPlaceholder: {
+    backgroundColor: '#4B5563',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customerPhotoInitial: {
+    fontFamily: fontFamily.bold,
+    fontSize: 22,
+    color: '#FFFFFF',
+  },
+  customerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  customerName: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+  },
+  readyInCard: {
+    flex: 0.8,
+    borderRadius: 12,
+    padding: 14,
+  },
+  readyInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  receivedButton: {
+    backgroundColor: '#ffd21f',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receivedButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 13,
     color: '#000000',
     letterSpacing: 0.5,
+  },
+  dropoffAddressCard: {
+    flex: 1.2,
+    borderRadius: 12,
+    padding: 14,
+  },
+  dropoffAddressText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
+    marginTop: 4,
+  },
+  toDropOffCard: {
+    flex: 0.8,
+    borderRadius: 12,
+    padding: 14,
+  },
+  toDropOffRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
 
   // Map
