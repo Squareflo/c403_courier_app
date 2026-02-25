@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, LogOut, Star, User } from 'lucide-react-native';
+import { ChevronDown, LogOut, Moon, Star, Sun, User, X } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
@@ -92,9 +92,13 @@ function StarRating({ rating, size = 16 }: { rating: number; size?: number }) {
 
 // ─── Dashboard Screen ───────────────────────────────────────────────────────
 
-export function DashboardScreen() {
+interface DashboardScreenProps {
+  onWentOnline?: () => void;
+}
+
+export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
   const { courier, signOut, refreshCourier } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -120,6 +124,8 @@ export function DashboardScreen() {
   // Profile data
   const profileImage = courier?.profile_picture_url || null;
   const firstName = courier?.first_name || 'Courier';
+  const lastName = courier?.last_name || '';
+  const fullName = lastName ? `${firstName} ${lastName}` : firstName;
   const communityRaw = courier?.community || '';
   const cityProvince = communityRaw.includes(',')
     ? communityRaw.split(',').slice(0, 2).map(s => s.trim()).join(', ')
@@ -179,7 +185,7 @@ export function DashboardScreen() {
     try {
       await updateCourierOnlineStatus(courier.id, true);
       await refreshCourier();
-      // TODO: Start location tracking, navigate to online mode
+      onWentOnline?.();
     } catch (err) {
       console.error('Error going online:', err);
     } finally {
@@ -206,72 +212,76 @@ export function DashboardScreen() {
     };
   };
 
-  // ── Always dark theme for offline dashboard ─────────────────────────────
-
-  const bg = '#000000';
-  const cardBg = '#1E1E1E';
-  const textColor = '#FFFFFF';
-  const textSecColor = '#AAAAAA';
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ec2227" />}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Header: Logo + Dashboard + Logout ── */}
-        <View style={styles.header}>
-          <Image source={{ uri: CHOWLOCAL_LOGO }} style={styles.headerLogo} />
-          <Text style={[styles.headerTitle, { color: textColor }]}>Dashboard</Text>
-          <TouchableOpacity onPress={signOut} style={styles.headerAction}>
-            <LogOut size={22} color={textColor} />
+    <View style={[styles.screen, { backgroundColor: colors.backgroundSecondary }]}>
+      {/* ── Header (matches manager app exactly) ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.backgroundSecondary, borderBottomWidth: 0 }]}>
+        <Image source={{ uri: CHOWLOCAL_LOGO }} style={styles.logo} resizeMode="contain" />
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[styles.headerTitleWrap, { paddingTop: insets.top + 8 }]}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Dashboard</Text>
+          </View>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={toggleTheme} hitSlop={8} style={styles.headerButton}>
+            {isDark ? <Sun size={22} color={colors.text} /> : <Moon size={22} color={colors.text} />}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={signOut} hitSlop={8} style={styles.headerButton}>
+            <LogOut size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
+      </View>
 
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Period Selector (right-aligned) ── */}
         <TouchableOpacity
-          style={styles.periodRow}
+          style={styles.periodSelector}
           onPress={() => setShowPeriodPicker(true)}
           activeOpacity={0.7}
+          hitSlop={8}
         >
-          <Text style={[styles.periodText, { color: textSecColor }]}>{getPeriodLabel(selectedPeriod)}</Text>
-          <ChevronDown size={14} color={textSecColor} />
+          <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{getPeriodLabel(selectedPeriod)}</Text>
+          <ChevronDown size={14} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {/* ── Profile Card + Slide To Go Online ── */}
-        <View style={[styles.profileSlideRow, IS_SMALL_SCREEN && styles.profileSlideRowStacked]}>
-          {/* Profile Card */}
-          <View style={[styles.profileCard, { backgroundColor: cardBg }, IS_SMALL_SCREEN && styles.profileCardFull]}>
+        {/* ── Profile Card (RestaurantCard style — image touches left/top/bottom) ── */}
+        <View style={[styles.profileCardOuter, { backgroundColor: colors.card }]}>
+          <View style={styles.profileCardInner}>
             {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.profileImage} />
+              <Image source={{ uri: profileImage }} style={styles.profileImage} resizeMode="cover" />
             ) : (
-              <View style={[styles.profileImage, styles.profilePlaceholder]}>
-                <User size={40} color="#666" />
+              <View style={[styles.profileImagePlaceholder, { backgroundColor: colors.surfaceTertiary }]}>
+                <User size={40} color={colors.textMuted} />
               </View>
             )}
             <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: textColor }]} numberOfLines={1}>{firstName}</Text>
-              <Text style={[styles.profileCity, { color: textSecColor }]} numberOfLines={1}>{cityProvince}</Text>
+              <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>{fullName}</Text>
+              <Text style={[styles.profileCity, { color: colors.textSecondary }]} numberOfLines={1}>{cityProvince}</Text>
               {courierReviewCount > 0 ? (
                 <View style={styles.ratingRow}>
                   <Text style={[styles.ratingNumber, { color: '#27d20b' }]}>{courierRating.toFixed(1)}</Text>
                   <StarRating rating={courierRating} size={12} />
-                  <Text style={[styles.reviewCount, { color: textSecColor }]}>{courierReviewCount} Reviews</Text>
+                  <Text style={[styles.reviewCount, { color: colors.textSecondary }]}>{courierReviewCount} Reviews</Text>
                 </View>
               ) : (
                 <View style={styles.ratingRow}>
-                  <Text style={{ fontFamily: fontFamily.regular, fontSize: 12, color: '#555' }}>No reviews yet</Text>
+                  <Text style={{ fontFamily: fontFamily.regular, fontSize: 12, color: colors.textMuted }}>No reviews yet</Text>
                 </View>
               )}
             </View>
           </View>
+        </View>
 
-          {/* Slide To Go Online */}
-          <View style={[styles.slideContainer, IS_SMALL_SCREEN && styles.slideContainerFull]}>
-            <SlideToOnline onSlideComplete={handleSlideToOnline} />
-          </View>
+        {/* ── Slide To Go Online ── */}
+        <View style={styles.slideContainer}>
+          <SlideToOnline onSlideComplete={handleSlideToOnline} />
         </View>
 
         {/* ── Stats Row (horizontally scrollable) ── */}
@@ -281,41 +291,41 @@ export function DashboardScreen() {
           contentContainerStyle={styles.statsScrollContent}
           style={styles.statsScroll}
         >
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{formatLargeNumber(stats.points)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Points</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatLargeNumber(stats.points)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Points</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{stats.deliveries}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Deliveries</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stats.deliveries}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Deliveries</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>${formatLargeNumber(Math.round(stats.earned))}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Earnings</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>${formatLargeNumber(Math.round(stats.earned))}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Earnings</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>${stats.avgPerDelivery.toFixed(0)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>${stats.avgPerDelivery.toFixed(0)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{Math.round(stats.totalKm)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>KM</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{Math.round(stats.totalKm)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>KM</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{stats.avgKmPerDelivery.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgKmPerDelivery.toFixed(1)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>${stats.earningsPerKm.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per KM</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>${stats.earningsPerKm.toFixed(1)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per KM</Text>
           </View>
         </ScrollView>
 
         {/* ── Latest Reviews Section ── */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: textColor }]}>Latest Reviews</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Reviews</Text>
           <TouchableOpacity>
-            <Text style={[styles.viewAllText, { color: textSecColor }]}>View All</Text>
+            <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View All</Text>
           </TouchableOpacity>
         </View>
 
@@ -326,15 +336,15 @@ export function DashboardScreen() {
         >
           {/* Placeholder review cards — will populate when courier_reviews table exists */}
           {[1, 2, 3].map((i) => (
-            <View key={i} style={[styles.reviewCard, { backgroundColor: cardBg }]}>
-              <Text style={[styles.reviewText, { color: textSecColor }]} numberOfLines={3}>
+            <View key={i} style={[styles.reviewCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
                 Vivamus lacinia pretium dolor sit amet male...
               </Text>
               <View style={{ marginVertical: 8 }}>
                 <StarRating rating={4} size={24} />
               </View>
-              <Text style={[styles.reviewMeta, { color: textSecColor }]}>
-                3 Days Ago by <Text style={{ fontFamily: fontFamily.bold, color: textColor }}>Amanda</Text>
+              <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
+                3 Days Ago by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>Amanda</Text>
               </Text>
             </View>
           ))}
@@ -344,7 +354,7 @@ export function DashboardScreen() {
         {recentPoints.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Points</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Points</Text>
             </View>
             <ScrollView
               horizontal
@@ -354,16 +364,16 @@ export function DashboardScreen() {
               {recentPoints.map((item) => {
                 const place = getNestedPlaceInfo(item);
                 return (
-                  <View key={item.id} style={[styles.recentCard, { backgroundColor: cardBg }]}>
+                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card }]}>
                     {place.image ? (
                       <Image source={{ uri: place.image }} style={styles.recentCardImage} />
                     ) : (
-                      <View style={[styles.recentCardImage, { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }]}>
-                        <User size={20} color="#666" />
+                      <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
+                        <User size={20} color={colors.textMuted} />
                       </View>
                     )}
-                    <Text style={[styles.recentCardName, { color: textColor }]} numberOfLines={1}>{place.name}</Text>
-                    <Text style={[styles.recentCardTime, { color: textSecColor }]}>{timeAgo(item.created_at)}</Text>
+                    <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
+                    <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.created_at)}</Text>
                     <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>+{item.points} pts</Text>
                   </View>
                 );
@@ -376,7 +386,7 @@ export function DashboardScreen() {
         {recentDeliveries.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Deliveries</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Deliveries</Text>
             </View>
             <ScrollView
               horizontal
@@ -386,16 +396,16 @@ export function DashboardScreen() {
               {recentDeliveries.map((item) => {
                 const place = getPlaceInfo(item);
                 return (
-                  <View key={item.id} style={[styles.recentCard, { backgroundColor: cardBg }]}>
+                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card }]}>
                     {place.image ? (
                       <Image source={{ uri: place.image }} style={styles.recentCardImage} />
                     ) : (
-                      <View style={[styles.recentCardImage, { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }]}>
-                        <User size={20} color="#666" />
+                      <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
+                        <User size={20} color={colors.textMuted} />
                       </View>
                     )}
-                    <Text style={[styles.recentCardName, { color: textColor }]} numberOfLines={1}>{place.name}</Text>
-                    <Text style={[styles.recentCardTime, { color: textSecColor }]}>{timeAgo(item.delivered_at)}</Text>
+                    <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
+                    <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.delivered_at)}</Text>
                     <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>${(item.courier_earnings || 0).toFixed(2)}</Text>
                   </View>
                 );
@@ -414,30 +424,37 @@ export function DashboardScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowPeriodPicker(false)}
       >
-        <View style={[styles.pickerContainer, { backgroundColor: cardBg }]}>
-          <View style={styles.pickerHeader}>
-            <Text style={[styles.pickerTitle, { color: textColor }]}>Select Period</Text>
+        <View style={[styles.pickerContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.pickerHeader, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+            <Text style={[styles.pickerTitle, { color: colors.text }]}>Select Period</Text>
             <TouchableOpacity onPress={() => setShowPeriodPicker(false)}>
-              <Text style={{ fontFamily: fontFamily.bold, fontSize: 16, color: textSecColor }}>Done</Text>
+              <X size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
-          {(['today', 'last_7', 'last_30', 'all_time'] as PeriodOption[]).map((period) => {
-            const isActive = selectedPeriod === period;
-            return (
-              <TouchableOpacity
-                key={period}
-                style={[styles.periodOption, isActive && { backgroundColor: textColor }]}
-                onPress={() => {
-                  setSelectedPeriod(period);
-                  setShowPeriodPicker(false);
-                }}
-              >
-                <Text style={[styles.periodOptionText, { color: isActive ? bg : textColor }]}>
-                  {getPeriodLabel(period)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            {(['today', 'last_7', 'last_30', 'all_time'] as PeriodOption[]).map((period) => {
+              const isActive = selectedPeriod === period;
+              return (
+                <TouchableOpacity
+                  key={period}
+                  style={[
+                    styles.periodOption,
+                    {
+                      backgroundColor: isActive ? colors.text : 'transparent',
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedPeriod(period);
+                    setShowPeriodPicker(false);
+                  }}
+                >
+                  <Text style={[styles.periodOptionText, { color: isActive ? colors.background : colors.text }]}>
+                    {getPeriodLabel(period)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -447,97 +464,112 @@ export function DashboardScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
 
-  // Header
+  // Header — matches manager app exactly
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    paddingBottom: 8,
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    paddingHorizontal: 16,
   },
-  headerLogo: {
-    width: 44,
-    height: 44,
+  logo: {
+    width: 40,
+    height: 40,
     borderRadius: 8,
   },
-  headerTitle: {
+  headerTitleWrap: {
     flex: 1,
-    textAlign: 'center',
-    fontFamily: fontFamily.bold,
-    fontSize: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 12,
   },
-  headerAction: {
-    width: 44,
-    height: 44,
+  headerTitle: {
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
 
-  // Period selector
-  periodRow: {
+  // Period selector — matches manager app exactly
+  periodSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
     gap: 4,
   },
-  periodText: {
+  periodLabel: {
     fontFamily: fontFamily.regular,
     fontSize: 13,
   },
 
-  // Profile + Slide row
-  profileSlideRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    gap: 12,
-    marginBottom: spacing.lg,
+  // Profile Card — RestaurantCard style (image touches left/top/bottom)
+  profileCardOuter: {
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {},
+    }),
   },
-  profileSlideRowStacked: {
-    flexDirection: 'column',
+  profileCardInner: {
+    flexDirection: 'row',
     alignItems: 'stretch',
-  },
-  profileCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-  },
-  profileCardFull: {
-    flex: undefined,
-    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
   },
   profileImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 92,
+    height: '100%',
+    minHeight: 86,
   },
-  profilePlaceholder: {
-    backgroundColor: '#333',
+  profileImagePlaceholder: {
+    width: 92,
+    minHeight: 86,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileInfo: {
     flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
     gap: 2,
   },
   profileName: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
+    marginBottom: 2,
   },
   profileCity: {
     fontFamily: fontFamily.regular,
@@ -558,14 +590,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Slide container
+  // Slide container — full width below profile card
   slideContainer: {
-    width: SCREEN_WIDTH * 0.42,
-    maxWidth: 260,
-  },
-  slideContainerFull: {
-    width: '100%',
-    maxWidth: undefined,
+    paddingHorizontal: 16,
+    marginBottom: spacing.lg,
   },
 
   // Stats
@@ -573,7 +601,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   statsScrollContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 16,
     gap: 10,
   },
   statCard: {
@@ -599,7 +627,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 16,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -614,7 +642,7 @@ const styles = StyleSheet.create({
 
   // Horizontal list
   horizontalListContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 16,
     gap: 12,
   },
 
@@ -666,17 +694,17 @@ const styles = StyleSheet.create({
   pickerContainer: {
     flex: 1,
     paddingTop: Platform.OS === 'ios' ? 20 : 16,
-    paddingHorizontal: 20,
   },
   pickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   pickerTitle: {
     fontFamily: fontFamily.bold,
-    fontSize: 20,
+    fontSize: 18,
   },
   periodOption: {
     paddingVertical: 14,

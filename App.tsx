@@ -6,6 +6,7 @@ import { SignInScreen } from './src/screens/SignInScreen';
 import { MainLayout } from './src/screens/MainLayout';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider } from './src/contexts/AuthContext';
+import PermissionGate from './src/components/PermissionGate';
 import { supabase } from './src/lib/supabase';
 import { useTheme } from './src/contexts/ThemeContext';
 
@@ -81,7 +82,9 @@ export default function App() {
         <ThemedStatusBar />
         <AuthProvider onSignOut={() => setIsAuthenticated(false)}>
           {isAuthenticated ? (
-            <MainLayout />
+            <PermissionGate>
+              <MainLayout />
+            </PermissionGate>
           ) : (
             <SignInScreen onSignInSuccess={() => setIsAuthenticated(true)} />
           )}

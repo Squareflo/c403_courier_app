@@ -73,19 +73,19 @@ export const Button: React.FC<ButtonProps> = ({
 
   const sizeStyles = {
     small: {
-      paddingVertical: 6,
+      paddingVertical: 8,
       paddingHorizontal: 16,
-      borderRadius: 999,
+      borderRadius: 10,
     },
     medium: {
-      paddingVertical: 8,
+      paddingVertical: 12,
       paddingHorizontal: 20,
-      borderRadius: 999,
+      borderRadius: 10,
     },
     large: {
-      paddingVertical: 12,
+      paddingVertical: 16,
       paddingHorizontal: 24,
-      borderRadius: 999,
+      borderRadius: 10,
     },
   };
 

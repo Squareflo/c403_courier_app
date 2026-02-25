@@ -1,9 +1,14 @@
-import React, { useRef, useState } from 'react';
-import { Animated, Dimensions, PanResponder, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  Animated,
+  LayoutChangeEvent,
+  PanResponder,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { fontFamily } from '../../constants/typography';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SlideToOnlineProps {
   onSlideComplete: () => void;
@@ -11,32 +16,57 @@ interface SlideToOnlineProps {
 }
 
 export default function SlideToOnline({ onSlideComplete, height = 64 }: SlideToOnlineProps) {
-  const [trackWidth, setTrackWidth] = useState(0);
-  const translateX = useRef(new Animated.Value(0)).current;
   const THUMB_SIZE = height - 8;
-  const maxSlide = trackWidth - THUMB_SIZE - 8;
+  const BORDER_RADIUS = 10;
+  const PADDING = 4;
+
+  const translateX = useRef(new Animated.Value(0)).current;
+  const trackWidthRef = useRef(0);
+  const completedRef = useRef(false);
+  const onSlideCompleteRef = useRef(onSlideComplete);
+  onSlideCompleteRef.current = onSlideComplete;
+
+  const [ready, setReady] = useState(false);
+
+  const getMax = () => Math.max(0, trackWidthRef.current - THUMB_SIZE - PADDING * 2);
 
   const panResponder = useRef(
     PanResponder.create({
+      // Capture touch BEFORE ScrollView can grab it
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        const newX = Math.max(0, Math.min(gestureState.dx, maxSlide));
-        translateX.setValue(newX);
+      onPanResponderTerminationRequest: () => false, // Don't let ScrollView steal it
+      onPanResponderGrant: () => {
+        translateX.stopAnimation();
+        completedRef.current = false;
       },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx >= maxSlide * 0.7) {
+      onPanResponderMove: (_, gs) => {
+        const max = getMax();
+        if (max <= 0) return;
+        const clamped = Math.max(0, Math.min(gs.dx, max));
+        translateX.setValue(clamped);
+      },
+      onPanResponderRelease: (_, gs) => {
+        const max = getMax();
+        if (max <= 0) return;
+
+        if (gs.dx >= max * 0.7 && !completedRef.current) {
+          completedRef.current = true;
           Animated.spring(translateX, {
-            toValue: maxSlide,
+            toValue: max,
             useNativeDriver: true,
+            bounciness: 0,
           }).start(() => {
-            onSlideComplete();
+            onSlideCompleteRef.current();
             setTimeout(() => {
+              completedRef.current = false;
               Animated.spring(translateX, {
                 toValue: 0,
                 useNativeDriver: true,
               }).start();
-            }, 500);
+            }, 600);
           });
         } else {
           Animated.spring(translateX, {
@@ -48,28 +78,37 @@ export default function SlideToOnline({ onSlideComplete, height = 64 }: SlideToO
     })
   ).current;
 
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    trackWidthRef.current = e.nativeEvent.layout.width;
+    if (!ready) setReady(true);
+  }, [ready]);
+
   return (
     <View
-      style={[styles.track, { height }]}
-      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      style={[styles.track, { height, borderRadius: BORDER_RADIUS }]}
+      onLayout={onLayout}
     >
       <Text style={styles.label}>Slide To Go Online</Text>
-      <Animated.View
-        style={[
-          styles.thumb,
-          {
-            width: THUMB_SIZE,
-            height: THUMB_SIZE,
-            borderRadius: THUMB_SIZE / 2,
-            transform: [{ translateX }],
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <ChevronRight size={20} color="#fff" strokeWidth={3} />
-        <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
-        <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
-      </Animated.View>
+
+      {ready && (
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.thumb,
+            {
+              width: THUMB_SIZE,
+              height: THUMB_SIZE,
+              borderRadius: BORDER_RADIUS - 2,
+              left: PADDING,
+              transform: [{ translateX }],
+            },
+          ]}
+        >
+          <ChevronRight size={20} color="#fff" strokeWidth={3} />
+          <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
+          <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -77,7 +116,6 @@ export default function SlideToOnline({ onSlideComplete, height = 64 }: SlideToO
 const styles = StyleSheet.create({
   track: {
     backgroundColor: '#27d20b',
-    borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -93,7 +131,6 @@ const styles = StyleSheet.create({
   thumb: {
     backgroundColor: 'rgba(255,255,255,0.3)',
     position: 'absolute',
-    left: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

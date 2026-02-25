@@ -5,17 +5,33 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
+import { OnlineScreen } from './OnlineScreen';
+import { OpenOfferScreen } from './OpenOfferScreen';
+import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
 import { fontFamily } from '../constants/typography';
 
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
- * Default tab: Dashboard
+ * When courier is online, shows OnlineScreen without bottom nav.
+ * When an offer is tapped, shows OpenOfferScreen.
+ * When an accepted delivery is tapped, shows ActiveDeliveryScreen.
+ * When offline, shows normal tab navigation with dashboard.
  */
 export function MainLayout() {
   const { colors } = useTheme();
   const { signOut, courier } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [isOnline, setIsOnline] = useState(false);
+
+  // Open offer navigation state
+  const [selectedOffer, setSelectedOffer] = useState<{
+    id: string;
+    type: 'open' | 'exclusive';
+  } | null>(null);
+
+  // Active delivery navigation state
+  const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
 
   // ── Tab navigation ──────────────────────────────────────────────────────
 
@@ -23,11 +39,75 @@ export function MainLayout() {
     setActiveTab(tab);
   };
 
-  // ─── Main tab screens ───
+  // ── Online mode (triggered from DashboardScreen's SlideToOnline) ────────
+
+  const handleWentOnline = () => {
+    setIsOnline(true);
+  };
+
+  const handleWentOffline = () => {
+    setIsOnline(false);
+    setSelectedOffer(null);
+    setActiveDeliveryId(null);
+    setActiveTab('dashboard');
+  };
+
+  // ── If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
+
+  if (isOnline || courier?.is_online) {
+    // If an active delivery is selected, show the ActiveDeliveryScreen
+    if (activeDeliveryId) {
+      return (
+        <SafeAreaProvider>
+          <View style={[styles.root, { backgroundColor: '#000000' }]}>
+            <ActiveDeliveryScreen
+              deliveryRequestId={activeDeliveryId}
+              onBack={() => setActiveDeliveryId(null)}
+              onDeliveryCompleted={() => {
+                setActiveDeliveryId(null);
+              }}
+            />
+          </View>
+        </SafeAreaProvider>
+      );
+    }
+
+    // If an offer is selected, show the OpenOfferScreen
+    if (selectedOffer) {
+      return (
+        <SafeAreaProvider>
+          <View style={[styles.root, { backgroundColor: '#000000' }]}>
+            <OpenOfferScreen
+              deliveryRequestId={selectedOffer.id}
+              offerType={selectedOffer.type}
+              onBack={() => setSelectedOffer(null)}
+              onOfferResolved={() => setSelectedOffer(null)}
+            />
+          </View>
+        </SafeAreaProvider>
+      );
+    }
+
+    // Otherwise show the OnlineScreen
+    return (
+      <SafeAreaProvider>
+        <View style={[styles.root, { backgroundColor: '#000000' }]}>
+          <OnlineScreen
+            onGoOffline={handleWentOffline}
+            onOfferPress={(id, type) => setSelectedOffer({ id, type })}
+            onAcceptedDeliveryPress={(id) => setActiveDeliveryId(id)}
+          />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // ─── Offline: Main tab screens with bottom nav ──────────────────────────
+
   const renderScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardScreen />;
+        return <DashboardScreen onWentOnline={handleWentOnline} />;
       case 'deliveries':
         return <PlaceholderScreen title="Deliveries" />;
       case 'wallet':

@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkColors, lightColors, type ThemeColors } from '../constants/colors';
+
+const THEME_STORAGE_KEY = 'courier_theme_mode';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -19,12 +22,25 @@ const ThemeContext = createContext<ThemeContextValue>({
   themeMode: 'system',
   toggleTheme: () => {},
   setThemeMode: () => {},
-  isThemeLoaded: true,
+  isThemeLoaded: false,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+  const [isThemeLoaded, setIsThemeLoaded] = useState(false);
+
+  // Load saved theme on mount
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_STORAGE_KEY)
+      .then((saved) => {
+        if (saved === 'light' || saved === 'dark' || saved === 'system') {
+          setThemeModeState(saved);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsThemeLoaded(true));
+  }, []);
 
   const isDark = useMemo(() => {
     if (themeMode === 'system') {
@@ -37,12 +53,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setThemeMode = (mode: ThemeMode) => {
     setThemeModeState(mode);
+    AsyncStorage.setItem(THEME_STORAGE_KEY, mode).catch(() => {});
   };
 
   const toggleTheme = () => {
     setThemeModeState((prev) => {
       const wasDark = prev === 'dark' || (prev === 'system' && systemColorScheme === 'dark');
-      return wasDark ? 'light' : 'dark';
+      const next = wasDark ? 'light' : 'dark';
+      AsyncStorage.setItem(THEME_STORAGE_KEY, next).catch(() => {});
+      return next;
     });
   };
 
@@ -53,9 +72,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       themeMode,
       toggleTheme,
       setThemeMode,
-      isThemeLoaded: true,
+      isThemeLoaded,
     }),
-    [colors, isDark, themeMode]
+    [colors, isDark, themeMode, isThemeLoaded]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
