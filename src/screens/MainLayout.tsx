@@ -18,6 +18,7 @@ import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
 import { WalletScreen } from './WalletScreen';
+import { MessagesScreen } from './MessagesScreen';
 import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
@@ -557,7 +558,7 @@ export function MainLayout() {
       case 'wallet':
         return <WalletScreen />;
       case 'messages':
-        return <PlaceholderScreen title="Messages" />;
+        return <MessagesScreen />;
       case 'reviews':
         return <PlaceholderScreen title="Reviews" />;
       case 'referrals':
