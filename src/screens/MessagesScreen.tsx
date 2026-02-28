@@ -79,9 +79,11 @@ function formatTagLabel(tag: string): string {
 interface MessagesScreenProps {
   onMessagePress?: (messageId: string) => void;
   onChatPress?: (chatId: string) => void;
+  markMessageReadLocally?: string | null;
+  markChatReadLocally?: string | null;
 }
 
-export function MessagesScreen({ onMessagePress, onChatPress }: MessagesScreenProps) {
+export function MessagesScreen({ onMessagePress, onChatPress, markMessageReadLocally, markChatReadLocally }: MessagesScreenProps) {
   const { courier } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -96,6 +98,28 @@ export function MessagesScreen({ onMessagePress, onChatPress }: MessagesScreenPr
   const [activeFilter, setActiveFilter] = useState<FilterTag>('all');
   const chatChannelRef = useRef<RealtimeChannel | null>(null);
   const [chatAvatarErrors, setChatAvatarErrors] = useState<Record<string, boolean>>({});
+
+  // Mark message as read locally when returning from detail screen
+  useEffect(() => {
+    if (markMessageReadLocally) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === markMessageReadLocally ? { ...msg, status: 'read' as const, readAt: new Date().toISOString() } : msg
+        )
+      );
+    }
+  }, [markMessageReadLocally]);
+
+  // Mark chat as read locally when returning from chat screen
+  useEffect(() => {
+    if (markChatReadLocally) {
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === markChatReadLocally ? { ...chat, unreadCount: 0 } : chat
+        )
+      );
+    }
+  }, [markChatReadLocally]);
 
   const profileImage = courier?.profile_picture_url || null;
 

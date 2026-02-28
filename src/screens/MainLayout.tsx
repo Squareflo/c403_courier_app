@@ -66,6 +66,8 @@ export function MainLayout() {
   const [viewingDeliveryId, setViewingDeliveryId] = useState<string | null>(null);
   const [viewingMessageId, setViewingMessageId] = useState<string | null>(null);
   const [viewingChatId, setViewingChatId] = useState<string | null>(null);
+  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
+  const [lastReadChatId, setLastReadChatId] = useState<string | null>(null);
 
   // Forced exclusive offer state — takes over entire app
   const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
@@ -562,7 +564,14 @@ export function MainLayout() {
       case 'wallet':
         return <WalletScreen />;
       case 'messages':
-        return <MessagesScreen onMessagePress={(id) => setViewingMessageId(id)} onChatPress={(id) => setViewingChatId(id)} />;
+        return (
+          <MessagesScreen
+            onMessagePress={(id) => setViewingMessageId(id)}
+            onChatPress={(id) => setViewingChatId(id)}
+            markMessageReadLocally={lastReadMessageId}
+            markChatReadLocally={lastReadChatId}
+          />
+        );
       case 'reviews':
         return <PlaceholderScreen title="Reviews" />;
       case 'referrals':
@@ -582,17 +591,17 @@ export function MainLayout() {
         {/* Message Detail Overlay */}
         {viewingMessageId && (
           <View style={StyleSheet.absoluteFill}>
-            <MessageDetailScreen messageId={viewingMessageId} onBack={() => setViewingMessageId(null)} />
+            <MessageDetailScreen messageId={viewingMessageId} onBack={() => { setLastReadMessageId(viewingMessageId); setViewingMessageId(null); }} />
           </View>
         )}
 
         {/* Chat Overlay */}
         {viewingChatId && (
           <View style={StyleSheet.absoluteFill}>
-            <ChatScreen chatId={viewingChatId} onBack={() => setViewingChatId(null)} />
+            <ChatScreen chatId={viewingChatId} onBack={() => { setLastReadChatId(viewingChatId); setViewingChatId(null); }} />
           </View>
         )}
-        <BottomNav activeTab={activeTab} onTabPress={handleTabPress} />
+        {!viewingChatId && !viewingMessageId && <BottomNav activeTab={activeTab} onTabPress={handleTabPress} />}
       </View>
     </SafeAreaProvider>
   );
