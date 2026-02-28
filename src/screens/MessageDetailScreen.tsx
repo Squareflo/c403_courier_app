@@ -116,7 +116,7 @@ export function MessageDetailScreen({ messageId, onBack }: MessageDetailScreenPr
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ArrowLeft size={24} color={colors.text} />
@@ -152,7 +152,7 @@ export function MessageDetailScreen({ messageId, onBack }: MessageDetailScreenPr
   })();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ArrowLeft size={24} color={colors.text} />

@@ -159,7 +159,7 @@ export function DeliveriesScreen({ onDeliveryPress }: DeliveriesScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         {profileImage ? (
@@ -178,7 +178,7 @@ export function DeliveriesScreen({ onDeliveryPress }: DeliveriesScreenProps) {
 
 
       {showSearch && (
-        <View style={[styles.searchContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.searchContainer, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
           <TextInput
             style={[styles.searchInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
             placeholder="Search by place name or delivery #..."
