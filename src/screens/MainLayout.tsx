@@ -29,6 +29,9 @@ const EXCLUSIVE_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/up
 const EXCLUSIVE_BG_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1772029081/new-offer-background-colr_c46ofv.jpg';
 const EXCLUSIVE_ICON_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 
+// How often to poll the DB for is_online status (ms)
+const ONLINE_STATUS_POLL_INTERVAL = 15000;
+
 /**
  * MainLayout handles post-auth navigation with a bottom tab bar.
  *
@@ -40,7 +43,7 @@ const EXCLUSIVE_ICON_URL = 'https://res.cloudinary.com/chowlocal/image/upload/v1
 export function MainLayout() {
   const { colors } = useTheme();
   const { tapFeedback } = useButtonFeedback();
-  const { signOut, courier } = useAuth();
+  const { signOut, courier, refreshCourier } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [isOnline, setIsOnline] = useState(false);
@@ -51,8 +54,11 @@ export function MainLayout() {
     type: 'open' | 'exclusive';
   } | null>(null);
 
-  // Active delivery navigation state
+  // Active delivery navigation state (for online mode)
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
+
+  // Viewing completed delivery from dashboard (offline mode)
+  const [viewingDeliveryId, setViewingDeliveryId] = useState<string | null>(null);
 
   // Forced exclusive offer state — takes over entire app
   const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
@@ -69,6 +75,66 @@ export function MainLayout() {
 
   // Track which offer ID we already triggered for (prevent re-triggers)
   const lastTriggeredOfferIdRef = useRef<string | null>(null);
+
+  // Polling ref for is_online status
+  const onlineStatusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Poll is_online status from DB ───────────────────────────────────────
+
+  useEffect(() => {
+    if (!courier?.id) return;
+
+    const checkOnlineStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('customer')
+          .select('is_online')
+          .eq('id', courier.id)
+          .single();
+
+        if (error) {
+          console.warn('[MainLayout] Error polling is_online:', error);
+          return;
+        }
+
+        if (data) {
+          const dbIsOnline = data.is_online === true;
+
+          // If DB says offline but local state says online — force offline
+          if (!dbIsOnline && isOnline) {
+            console.log('[MainLayout] DB says offline — syncing local state to offline');
+            setIsOnline(false);
+            setSelectedOffer(null);
+            setActiveDeliveryId(null);
+            setActiveTab('dashboard');
+            refreshCourier();
+          }
+
+          // If DB says online but local state says offline — force online
+          if (dbIsOnline && !isOnline) {
+            console.log('[MainLayout] DB says online — syncing local state to online');
+            setIsOnline(true);
+            refreshCourier();
+          }
+        }
+      } catch (err) {
+        console.warn('[MainLayout] Error in online status poll:', err);
+      }
+    };
+
+    // Run immediately on mount
+    checkOnlineStatus();
+
+    // Then poll every 15 seconds
+    onlineStatusPollRef.current = setInterval(checkOnlineStatus, ONLINE_STATUS_POLL_INTERVAL);
+
+    return () => {
+      if (onlineStatusPollRef.current) {
+        clearInterval(onlineStatusPollRef.current);
+        onlineStatusPollRef.current = null;
+      }
+    };
+  }, [courier?.id, isOnline, refreshCourier]);
 
   // ── Play exclusive offer notification sound (looping) ───────────────────
 
@@ -233,19 +299,10 @@ export function MainLayout() {
             });
           }
 
-          // Offer status changed (accepted/rejected/timed_out) — re-check
-          if (payload.eventType === 'UPDATE') {
-            if (
-              payload.new.type === 'exclusive' &&
-              payload.new.courier_id === courier.id &&
-              payload.new.status !== 'pending'
-            ) {
-              console.log('[MainLayout] Exclusive offer resolved — clearing');
-              setForcedExclusiveOffer(null);
-              setExclusiveSplashDismissed(false);
-              stopExclusiveOfferSound();
-            }
-          }
+          // Offer status changed (accepted/rejected/timed_out)
+          // Don't clear forcedExclusiveOffer here — let OpenOfferScreen
+          // handle its own exit via onOfferResolved so the points lost
+          // modal has time to display before unmounting.
         }
       )
       .subscribe((status: string) => {
@@ -276,14 +333,97 @@ export function MainLayout() {
     setActiveTab('dashboard');
   };
 
+  // ── Smart post-accept routing ───────────────────────────────────────────
+  // After accepting a delivery, route the courier based on how many
+  // OTHER active deliveries they have:
+  //   0 others → go to the just-accepted delivery
+  //   1 other  → go to that other delivery (it was already in progress)
+  //   2+ others → go to OnlineScreen (pick from the list)
+
+  const handleOfferResolved = useCallback(async (acceptedDeliveryId?: string) => {
+    setSelectedOffer(null);
+
+    if (!acceptedDeliveryId || !courier?.id) {
+      // Reject / expiry / no ID — just go back to OnlineScreen
+      return;
+    }
+
+    try {
+      // Count other active deliveries (excluding the one just accepted)
+      const { data: otherDeliveries, error } = await supabase
+        .from('delivery_request')
+        .select('id')
+        .eq('courier_id', courier.id)
+        .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
+        .neq('id', acceptedDeliveryId);
+
+      if (error) {
+        console.error('[MainLayout] Error checking other deliveries:', error);
+        // Fallback: go to the accepted delivery
+        setActiveDeliveryId(acceptedDeliveryId);
+        return;
+      }
+
+      const otherCount = otherDeliveries?.length || 0;
+      console.log('[MainLayout] Post-accept routing: other active deliveries =', otherCount);
+
+      if (otherCount === 0) {
+        // No other deliveries — go to the just-accepted delivery
+        setActiveDeliveryId(acceptedDeliveryId);
+      } else if (otherCount === 1) {
+        // 1 other delivery — go to that one (it needs attention)
+        setActiveDeliveryId(otherDeliveries![0].id);
+      } else {
+        // 2+ other deliveries — go to OnlineScreen to pick
+        // activeDeliveryId stays null, which shows OnlineScreen
+      }
+    } catch (err) {
+      console.error('[MainLayout] Error in post-accept routing:', err);
+      // Fallback: go to the accepted delivery
+      setActiveDeliveryId(acceptedDeliveryId);
+    }
+  }, [courier?.id]);
+
   // ── Handle exclusive offer resolved (accept/reject/expiry) ──────────────
 
-  const handleExclusiveResolved = () => {
+  const handleExclusiveResolved = useCallback(async (acceptedDeliveryId?: string) => {
     setForcedExclusiveOffer(null);
     setExclusiveSplashDismissed(false);
     stopExclusiveOfferSound();
+
+    if (acceptedDeliveryId && courier?.id) {
+      // Use same smart routing for exclusive offers
+      try {
+        const { data: otherDeliveries, error } = await supabase
+          .from('delivery_request')
+          .select('id')
+          .eq('courier_id', courier.id)
+          .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
+          .neq('id', acceptedDeliveryId);
+
+        if (error) {
+          setActiveDeliveryId(acceptedDeliveryId);
+          checkForExclusiveOffer();
+          return;
+        }
+
+        const otherCount = otherDeliveries?.length || 0;
+        console.log('[MainLayout] Post-exclusive-accept routing: other active deliveries =', otherCount);
+
+        if (otherCount === 0) {
+          setActiveDeliveryId(acceptedDeliveryId);
+        } else if (otherCount === 1) {
+          setActiveDeliveryId(otherDeliveries![0].id);
+        }
+        // 2+ → stay on OnlineScreen (activeDeliveryId stays null)
+      } catch (err) {
+        console.error('[MainLayout] Error in exclusive post-accept routing:', err);
+        setActiveDeliveryId(acceptedDeliveryId);
+      }
+    }
+
     checkForExclusiveOffer();
-  };
+  }, [courier?.id, stopExclusiveOfferSound, checkForExclusiveOffer]);
 
   // ── Handle "OPEN" tap on splash screen ──────────────────────────────────
 
@@ -291,6 +431,12 @@ export function MainLayout() {
     tapFeedback();
     stopExclusiveOfferSound();
     setExclusiveSplashDismissed(true);
+  };
+
+  // ── Handle delivery press from dashboard (offline) ──────────────────────
+
+  const handleDashboardDeliveryPress = (deliveryId: string) => {
+    setViewingDeliveryId(deliveryId);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -314,13 +460,31 @@ export function MainLayout() {
     // After tapping "OPEN", show the full offer details
     return (
       <SafeAreaProvider>
-        <View style={[styles.root, { backgroundColor: '#000000' }]}>
+        <View style={[styles.root, { backgroundColor: colors.background }]}>
           <OpenOfferScreen
             deliveryRequestId={forcedExclusiveOffer.deliveryRequestId}
             offerType="exclusive"
             isForced
-            onBack={handleExclusiveResolved}
+            onBack={() => handleExclusiveResolved()}
             onOfferResolved={handleExclusiveResolved}
+          />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIEWING COMPLETED DELIVERY FROM DASHBOARD (offline mode)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (viewingDeliveryId) {
+    return (
+      <SafeAreaProvider>
+        <View style={[styles.root, { backgroundColor: colors.background }]}>
+          <ActiveDeliveryScreen
+            deliveryRequestId={viewingDeliveryId}
+            onBack={() => setViewingDeliveryId(null)}
+            onDeliveryCompleted={() => setViewingDeliveryId(null)}
           />
         </View>
       </SafeAreaProvider>
@@ -333,12 +497,12 @@ export function MainLayout() {
     if (selectedOffer) {
       return (
         <SafeAreaProvider>
-          <View style={[styles.root, { backgroundColor: '#000000' }]}>
+          <View style={[styles.root, { backgroundColor: colors.background }]}>
             <OpenOfferScreen
               deliveryRequestId={selectedOffer.id}
               offerType={selectedOffer.type}
               onBack={() => setSelectedOffer(null)}
-              onOfferResolved={() => setSelectedOffer(null)}
+              onOfferResolved={handleOfferResolved}
             />
           </View>
         </SafeAreaProvider>
@@ -348,7 +512,7 @@ export function MainLayout() {
     if (activeDeliveryId) {
       return (
         <SafeAreaProvider>
-          <View style={[styles.root, { backgroundColor: '#000000' }]}>
+          <View style={[styles.root, { backgroundColor: colors.background }]}>
             <ActiveDeliveryScreen
               deliveryRequestId={activeDeliveryId}
               onBack={() => setActiveDeliveryId(null)}
@@ -364,7 +528,7 @@ export function MainLayout() {
 
     return (
       <SafeAreaProvider>
-        <View style={[styles.root, { backgroundColor: '#000000' }]}>
+        <View style={[styles.root, { backgroundColor: colors.background }]}>
           <OnlineScreen
             onGoOffline={handleWentOffline}
             onOfferPress={(id, type) => setSelectedOffer({ id, type })}
@@ -380,7 +544,12 @@ export function MainLayout() {
   const renderScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardScreen onWentOnline={handleWentOnline} />;
+        return (
+          <DashboardScreen
+            onWentOnline={handleWentOnline}
+            onDeliveryPress={handleDashboardDeliveryPress}
+          />
+        );
       case 'deliveries':
         return <PlaceholderScreen title="Deliveries" />;
       case 'wallet':

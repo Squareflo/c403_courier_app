@@ -43,7 +43,7 @@ export async function getCurrentLocation(): Promise<{ latitude: number; longitud
 
     return lastLocation;
   } catch (error) {
-    console.error('[Location] Error getting current location:', error);
+    console.warn('[Location] Error getting current location:', error);
     return null;
   }
 }
@@ -65,7 +65,7 @@ export async function startLocationTracking(courierId: string): Promise<void> {
         initialLocation.longitude
       );
     } catch (error) {
-      console.error('[Location] Error updating initial location:', error);
+      console.warn('[Location] Error updating initial location:', error);
     }
   }
 
@@ -94,7 +94,7 @@ export async function startLocationTracking(courierId: string): Promise<void> {
           lastLocation.longitude
         );
       } catch (error) {
-        console.error('[Location] Error updating location:', error);
+        console.warn('[Location] Error updating location:', error);
       }
     }
   }, LOCATION_UPDATE_INTERVAL);

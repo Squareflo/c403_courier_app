@@ -60,11 +60,6 @@ export const assessCourierPenalty = (body: {
   reason: string;
 }) => callEdgeFunction('assess-courier-penalty', body);
 
-/** Update courier 30-day points total */
-export const updateCourier30DayPoints = (body: {
-  courier_id: string;
-}) => callEdgeFunction('update-courier-30-day-points', body);
-
 // ─── Auth & Account Functions ───────────────────────────────────────────────────
 
 /** Request a password reset code via email */
@@ -274,19 +269,49 @@ export async function updateCourierLocationInDB(
   }
 }
 
-/** Toggle courier online/offline status */
+/** Toggle courier online/offline status, refresh 30-day points and update territory when going online */
 export async function updateCourierOnlineStatus(courierId: string, isOnline: boolean) {
   const { error } = await supabase
     .from('customer')
     .update({
       is_online: isOnline,
-      ...(isOnline ? {} : { current_location_latitude: null, current_location_longitude: null }),
     })
     .eq('id', courierId);
 
   if (error) {
     console.error('[API] updateCourierOnlineStatus error:', error);
     throw error;
+  }
+
+  // When going online, recalculate the courier's 30-day points and update territory
+  if (isOnline) {
+    try {
+      const { data, error: rpcError } = await supabase.rpc('update_courier_30_day_points', {
+        courier_id_param: courierId,
+      });
+      if (rpcError) {
+        console.error('[API] update_courier_30_day_points error:', rpcError);
+      } else {
+        console.log(`[API] Courier 30-day points updated: ${data}`);
+      }
+    } catch (err) {
+      // Non-blocking — don't prevent going online if points calc fails
+      console.error('[API] Failed to update 30-day points:', err);
+    }
+
+    try {
+      const { data: territoryId, error: terError } = await supabase.rpc('update_courier_territory', {
+        courier_id_param: courierId,
+      });
+      if (terError) {
+        console.error('[API] update_courier_territory error:', terError);
+      } else {
+        console.log(`[API] Courier territory updated: ${territoryId}`);
+      }
+    } catch (err) {
+      // Non-blocking — don't prevent going online if territory update fails
+      console.error('[API] Failed to update territory:', err);
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  ImageBackground,
   Linking,
   Modal,
   Platform,
@@ -15,6 +16,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { DARK_MAP_STYLE, LIGHT_MAP_STYLE } from '../styles/mapStyles';
+import { formatDistance } from '../utils/distance';
 import { Audio } from 'expo-av';
 import { ChevronLeft, User, X, ZapOff } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,8 +27,10 @@ import { getCurrentLocation } from '../services/locationService';
 import { PlaceCard } from '../components/ui/PlaceCard';
 import { useTheme } from '../contexts/ThemeContext';
 import { useButtonFeedback } from '../hooks/useButtonFeedback';
+import SlideToAccept from '../components/ui/SlideToAccept';
+import SlideToReject from '../components/ui/SlideToReject';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ── Map marker icons ─────────────────────────────────────────────────────────
 
@@ -42,93 +47,16 @@ const REJECT_SOUND_URL =
 const ACCEPT_SOUND_URL =
   'https://res.cloudinary.com/chowlocal/video/upload/v1772033249/196571__ecfike__yeeeeeaaaahh-yeah_dsiwmp.wav';
 
+// ── Points Lost Modal Assets ─────────────────────────────────────────────────
+
+const POOP_ICON_URL =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772053702/poop_icon_ducsra.png';
+const POINTS_LOST_BG_URL =
+  'https://res.cloudinary.com/chowlocal/image/upload/v1772053700/background_xdhbut.jpg';
+
 // ── Dark mode map style ──────────────────────────────────────────────────────
 
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d59563' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d59563' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.icon',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#263c3f' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6b9a76' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#38414e' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#212a37' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#9ca5b3' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#746855' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#1f2835' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#f3d19c' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#2f3948' }],
-  },
-  {
-    featureType: 'transit.station',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d59563' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#17263c' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#515c6d' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#17263c' }],
-  },
-];
+// Map styles imported from shared file
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,8 +64,8 @@ interface OpenOfferScreenProps {
   deliveryRequestId: string;
   offerType: 'open' | 'exclusive';
   onBack: () => void;
-  /** Called after accept/reject so parent can reload offers */
-  onOfferResolved?: () => void;
+  /** Called after accept/reject so parent can reload offers. Passes acceptedDeliveryId on accept. */
+  onOfferResolved?: (acceptedDeliveryId?: string) => void;
   /**
    * When true, the screen cannot be dismissed — no back button.
    * Used for exclusive offers that must be accepted/rejected/expired.
@@ -232,7 +160,7 @@ export function OpenOfferScreen({
   isForced = false,
 }: OpenOfferScreenProps) {
   const { courier, refreshCourier } = useAuth();
-  const { isDark } = useTheme();
+  const { colors, isDark } = useTheme();
   const { tapFeedback } = useButtonFeedback();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
@@ -244,6 +172,10 @@ export function OpenOfferScreen({
   const [error, setError] = useState<string | null>(null);
   const [showMapFullscreen, setShowMapFullscreen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+
+  // Points Lost Modal state
+  const [showPointsLostModal, setShowPointsLostModal] = useState(false);
+  const [pointsLost, setPointsLost] = useState<number>(0);
 
   const [delivery, setDelivery] = useState<DeliveryData | null>(null);
   const [place, setPlace] = useState<PlaceData | null>(null);
@@ -302,26 +234,34 @@ export function OpenOfferScreen({
         return;
       }
 
-      // 3. Find the delivery_offer for this courier / open
+      // 3. Find ANY delivery_offer for this request (not filtering by status)
       const { data: offerRows } = await supabase
         .from('delivery_offer')
         .select('id, type, status, expires_at, courier_id')
         .eq('delivery_request_id', deliveryRequestId)
-        .eq('status', 'pending')
         .order('offered_at', { ascending: false })
-        .limit(5);
+        .limit(10);
+
+      console.log('[OpenOfferScreen] Found offers:', offerRows?.length || 0);
 
       if (offerRows && offerRows.length > 0) {
-        // Prefer the one assigned to this courier (exclusive), or the open one
-        const exclusive = offerRows.find(
-          (o: any) => o.type === 'exclusive' && o.courier_id === courier.id,
+        // For exclusive: find the one for this courier
+        // For open: find the open offer (courier_id is null)
+        const exclusiveForMe = offerRows.find(
+          (o: any) => o.type === 'exclusive' && o.courier_id === courier.id && o.status === 'pending',
         );
-        const open = offerRows.find((o: any) => o.type === 'open');
-        const relevantOffer = exclusive || open || offerRows[0];
+        const openOffer = offerRows.find((o: any) => o.type === 'open');
+        const relevantOffer = exclusiveForMe || openOffer || offerRows[0];
+        
         setDeliveryOffer(relevantOffer as DeliveryOfferData);
+        console.log('[OpenOfferScreen] Selected offer:', relevantOffer?.id, relevantOffer?.type, relevantOffer?.status);
 
-        // Countdown for exclusive
-        if (relevantOffer.type === 'exclusive' && relevantOffer.expires_at) {
+        // Countdown for pending exclusive offers only
+        if (
+          relevantOffer.type === 'exclusive' &&
+          relevantOffer.status === 'pending' &&
+          relevantOffer.expires_at
+        ) {
           const expiresAt = new Date(relevantOffer.expires_at);
           const now = new Date();
           const secondsRemaining = Math.max(
@@ -525,7 +465,7 @@ export function OpenOfferScreen({
         .eq('id', courier.id);
 
       await refreshCourier();
-      onOfferResolved?.();
+      onOfferResolved?.(deliveryRequestId);
       onBack();
     } catch (err) {
       console.error('[OpenOfferScreen] Error accepting:', err);
@@ -539,13 +479,18 @@ export function OpenOfferScreen({
 
   const handleReject = async (isAutomatic = false) => {
     if (!courier?.id || !delivery) return;
+    
+    console.log('[OpenOfferScreen] ========== REJECT STARTED ==========');
+    console.log('[OpenOfferScreen] courier.id:', courier.id);
+    console.log('[OpenOfferScreen] deliveryOffer:', deliveryOffer);
+    console.log('[OpenOfferScreen] offerType prop:', offerType);
+    
     if (!isAutomatic) {
       setRejecting(true);
       // Play reject sound
       try {
         const { sound } = await Audio.Sound.createAsync({ uri: REJECT_SOUND_URL });
         await sound.playAsync();
-        // Auto-unload after playback
         sound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.didJustFinish) sound.unloadAsync();
         });
@@ -555,8 +500,12 @@ export function OpenOfferScreen({
     }
     setError(null);
 
+    let penaltyPoints = 0;
+
     try {
-      // 1. Update delivery_request with rejection
+      // ====================================================================
+      // STEP 1: Update delivery_request with rejection (ALWAYS — all types)
+      // ====================================================================
       await supabase
         .from('delivery_request')
         .update({
@@ -567,8 +516,32 @@ export function OpenOfferScreen({
         })
         .eq('id', deliveryRequestId);
 
-      // 2. Update delivery_offer status
-      if (deliveryOffer) {
+      console.log('[OpenOfferScreen] STEP 1: Updated delivery_request with rejection');
+
+      // ====================================================================
+      // STEP 2: Determine penalty reason (ALWAYS — all types)
+      // ====================================================================
+      const effectiveOfferType = deliveryOffer?.type || offerType || 'open';
+      let penaltyReason: string | null = null;
+
+      if (delivery.is_outside_order) {
+        penaltyReason = isAutomatic ? null : 'rejected_open';
+      } else if (isAutomatic && effectiveOfferType === 'exclusive') {
+        penaltyReason = 'expired_exclusive';
+      } else if (!isAutomatic && effectiveOfferType === 'exclusive') {
+        penaltyReason = 'rejected_exclusive';
+      } else if (!isAutomatic && effectiveOfferType === 'open') {
+        penaltyReason = 'rejected_open';
+      }
+
+      console.log('[OpenOfferScreen] STEP 2: effectiveOfferType:', effectiveOfferType);
+      console.log('[OpenOfferScreen] STEP 2: penaltyReason:', penaltyReason);
+
+      // ====================================================================
+      // STEP 3: Update delivery_offer status — EXCLUSIVE ONLY
+      // Open offers must NEVER be modified. They stay "pending" for all couriers.
+      // ====================================================================
+      if (deliveryOffer && deliveryOffer.status === 'pending' && deliveryOffer.type === 'exclusive') {
         await supabase
           .from('delivery_offer')
           .update({
@@ -576,47 +549,72 @@ export function OpenOfferScreen({
             rejected_at: new Date().toISOString(),
           })
           .eq('id', deliveryOffer.id);
+        console.log('[OpenOfferScreen] STEP 3: Updated EXCLUSIVE delivery_offer status');
+      } else if (deliveryOffer && deliveryOffer.type === 'open') {
+        console.log('[OpenOfferScreen] STEP 3 SKIPPED: Open offer — no fields touched');
+      }
 
-        // 3. Assess penalty (exclusive offers only, or manual rejection of open)
-        let penaltyReason: string | null = null;
-        if (delivery.is_outside_order) {
-          penaltyReason = isAutomatic ? null : 'rejected_open';
-        } else if (isAutomatic && deliveryOffer.type === 'exclusive') {
-          penaltyReason = 'expired_exclusive';
-        } else if (!isAutomatic && deliveryOffer.type === 'exclusive') {
-          penaltyReason = 'rejected_exclusive';
-        } else if (!isAutomatic && deliveryOffer.type === 'open') {
-          penaltyReason = 'rejected_open';
+      // ====================================================================
+      // STEP 4: Assess courier penalty (ALWAYS if reason exists)
+      // ====================================================================
+      if (penaltyReason && deliveryOffer?.id) {
+        console.log('[OpenOfferScreen] STEP 4: Calling assess-courier-penalty...');
+        console.log('[OpenOfferScreen] STEP 4: Request body:', {
+          delivery_offer_id: deliveryOffer.id,
+          reason: penaltyReason,
+          courier_id: courier.id,
+        });
+
+        const { data: penaltyResponse, error: penaltyError } = await supabase.functions.invoke(
+          'assess-courier-penalty',
+          {
+            body: {
+              delivery_offer_id: deliveryOffer.id,
+              reason: penaltyReason,
+              courier_id: courier.id, // ALWAYS pass courier_id
+            },
+          },
+        );
+
+        console.log('[OpenOfferScreen] STEP 4: Penalty response:', JSON.stringify(penaltyResponse, null, 2));
+        
+        if (penaltyError) {
+          console.error('[OpenOfferScreen] STEP 4: Penalty error:', penaltyError);
         }
 
-        if (penaltyReason) {
-          try {
-            await supabase.functions.invoke('assess-courier-penalty', {
-              body: {
-                delivery_offer_id: deliveryOffer.id,
-                reason: penaltyReason,
-              },
-            });
-          } catch (penErr) {
-            console.error('[OpenOfferScreen] Penalty error:', penErr);
-          }
-        }
-
-        // 4. Create next sequential offer (for exclusive offers)
-        if (deliveryOffer.type === 'exclusive') {
-          try {
-            await supabase.functions.invoke('create-next-sequential-offer', {
-              body: {
-                rejected_offer_id: deliveryOffer.id,
-              },
-            });
-          } catch (nextErr) {
-            console.error('[OpenOfferScreen] Next offer error:', nextErr);
-          }
+        // Extract penalty points from response
+        if (penaltyResponse?.penalty_calculation?.final_penalty_points) {
+          penaltyPoints = penaltyResponse.penalty_calculation.final_penalty_points;
+          console.log('[OpenOfferScreen] STEP 4: Extracted penalty points:', penaltyPoints);
+        } else if (penaltyResponse?.penalty_assessed === false) {
+          console.log('[OpenOfferScreen] STEP 4: No penalty assessed:', penaltyResponse?.message);
         }
       }
 
-      // 5. Increment courier's rejected count
+      // ====================================================================
+      // STEP 5: Create next sequential offer — EXCLUSIVE ONLY
+      // Open offers do NOT trigger sequential offer creation.
+      // This is intentionally OUTSIDE the penalty block.
+      // ====================================================================
+      if (deliveryOffer?.type === 'exclusive') {
+        try {
+          console.log('[OpenOfferScreen] STEP 5: Calling create-next-sequential-offer...');
+          await supabase.functions.invoke('create-next-sequential-offer', {
+            body: {
+              rejected_offer_id: deliveryOffer.id,
+            },
+          });
+          console.log('[OpenOfferScreen] STEP 5: create-next-sequential-offer completed');
+        } catch (nextErr) {
+          console.error('[OpenOfferScreen] STEP 5: Next offer error:', nextErr);
+        }
+      } else {
+        console.log('[OpenOfferScreen] STEP 5 SKIPPED: Open offer — create-next-sequential-offer not called');
+      }
+
+      // ====================================================================
+      // STEP 6: Increment courier's rejected count (ALWAYS)
+      // ====================================================================
       const currentRejected = courier.total_delivery_requests_rejected || 0;
       await supabase
         .from('customer')
@@ -624,8 +622,22 @@ export function OpenOfferScreen({
         .eq('id', courier.id);
 
       await refreshCourier();
-      onOfferResolved?.();
-      onBack();
+
+      console.log('[OpenOfferScreen] ========== REJECT COMPLETED ==========');
+      console.log('[OpenOfferScreen] Final penalty points:', penaltyPoints);
+
+      // Show points lost modal for manual rejections
+      if (!isAutomatic) {
+        setRejecting(false);
+        if (penaltyPoints > 0) {
+          setPointsLost(penaltyPoints);
+        }
+        setShowPointsLostModal(true);
+      } else {
+        // For automatic timeouts, go back immediately
+        onOfferResolved?.();
+        onBack();
+      }
     } catch (err) {
       console.error('[OpenOfferScreen] Error rejecting:', err);
       if (!isAutomatic) {
@@ -635,12 +647,21 @@ export function OpenOfferScreen({
     }
   };
 
-  // ── Dark theme ─────────────────────────────────────────────────────────────
+  // ── Handle Points Lost Modal Exit ──────────────────────────────────────────
 
-  const bg = '#000000';
-  const cardBg = '#2a2a2a';
-  const textColor = '#FFFFFF';
-  const textSecColor = '#9CA3AF';
+  const handlePointsLostExit = () => {
+    tapFeedback();
+    setShowPointsLostModal(false);
+    onOfferResolved?.();
+    onBack();
+  };
+
+  // ── Theme-aware colors ─────────────────────────────────────────────────────
+
+  const bg = colors.backgroundSecondary;
+  const cardBg = colors.card;
+  const textColor = colors.text;
+  const textSecColor = colors.textTertiary;
 
   const profileImage = courier?.profile_picture_url || null;
 
@@ -653,6 +674,9 @@ export function OpenOfferScreen({
     : '';
 
   const minutesUntilPickup = calculateMinutesUntilPickup(delivery?.pickup_eta || null);
+  const isLate = minutesUntilPickup !== null && minutesUntilPickup < 0;
+  const arriveInColor = isLate ? '#ff3131' : '#27d20b';
+  const arriveInBg = isLate ? 'rgba(255, 49, 49, 0.15)' : 'rgba(39, 210, 11, 0.15)';
   const deliveryDistKm = delivery?.delivery_distance_km || null;
 
   // Map coordinates
@@ -802,7 +826,10 @@ export function OpenOfferScreen({
           {!isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-              onPress={() => { tapFeedback(); onBack(); }}
+              onPress={() => {
+                tapFeedback();
+                onBack();
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Go Back</Text>
@@ -811,7 +838,10 @@ export function OpenOfferScreen({
           {isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
-              onPress={() => { tapFeedback(); loadData(); }}
+              onPress={() => {
+                tapFeedback();
+                loadData();
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Retry</Text>
@@ -830,7 +860,10 @@ export function OpenOfferScreen({
           {!isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227' }]}
-              onPress={() => { tapFeedback(); onBack(); }}
+              onPress={() => {
+                tapFeedback();
+                onBack();
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Go Back</Text>
@@ -839,7 +872,10 @@ export function OpenOfferScreen({
           {isForced && (
             <TouchableOpacity
               style={[styles.centeredButton, { backgroundColor: '#ec2227', marginTop: 12 }]}
-              onPress={() => { tapFeedback(); loadData(); }}
+              onPress={() => {
+                tapFeedback();
+                loadData();
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.centeredButtonText}>Retry</Text>
@@ -851,6 +887,10 @@ export function OpenOfferScreen({
   }
 
   const headerTitle = offerType === 'exclusive' ? 'Exclusive Offer' : 'Open Offer';
+
+  // Status badge color — muted white in dark mode, muted black in light mode
+  const badgeBorderColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)';
+  const badgeTextColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)';
 
   return (
     <View style={[styles.screen, { backgroundColor: bg }]}>
@@ -870,27 +910,34 @@ export function OpenOfferScreen({
               <User size={20} color="#666" />
             </View>
           )
+        ) : // Normal mode: tappable profile pic acts as back button
+        profileImage ? (
+          <TouchableOpacity
+            onPress={() => {
+              tapFeedback();
+              onBack();
+            }}
+            activeOpacity={0.7}
+          >
+            <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
+          </TouchableOpacity>
         ) : (
-          // Normal mode: tappable profile pic acts as back button
-          profileImage ? (
-            <TouchableOpacity onPress={() => { tapFeedback(); onBack(); }} activeOpacity={0.7}>
-              <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={() => { tapFeedback(); onBack(); }}
-              activeOpacity={0.7}
-              style={[
-                styles.headerProfileImage,
-                { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
-              ]}
-            >
-              <User size={20} color="#666" />
-            </TouchableOpacity>
-          )
+          <TouchableOpacity
+            onPress={() => {
+              tapFeedback();
+              onBack();
+            }}
+            activeOpacity={0.7}
+            style={[
+              styles.headerProfileImage,
+              { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
+            ]}
+          >
+            <User size={20} color="#666" />
+          </TouchableOpacity>
         )}
 
-        <Text style={styles.headerTitle}>{headerTitle}</Text>
+        <Text style={[styles.headerTitle, { color: textColor }]}>{headerTitle}</Text>
 
         <TouchableOpacity style={[styles.headerAction, { opacity: 0.3 }]}>
           <ZapOff size={24} color={textColor} />
@@ -902,90 +949,86 @@ export function OpenOfferScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Delivery # + PENDING badge ── */}
+        {/* ── Delivery # + PENDING badge (30% smaller, muted) ── */}
         <View style={styles.deliveryRow}>
-          <Text style={[styles.deliveryNumber, { color: textColor }]}>
-            Delivery {deliveryNum}
-          </Text>
-          <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>PENDING</Text>
+          <Text style={[styles.deliveryNumber, { color: textColor }]}>Delivery {deliveryNum}</Text>
+          <View style={[styles.pendingBadge, { borderColor: badgeBorderColor }]}>
+            <Text style={[styles.pendingBadgeText, { color: badgeTextColor }]}>PENDING</Text>
           </View>
         </View>
 
         {/* ── Restaurant card (PlaceCard component) ── */}
-        {place && (
-          <PlaceCard place={place} containerStyle={{ marginHorizontal: 0 }} />
-        )}
+        {place && <PlaceCard place={place} containerStyle={{ marginHorizontal: 0 }} />}
 
         {/* ── To Pickup + Delivery Dist (side by side) ── */}
         <View style={styles.distanceRow}>
           <View style={[styles.distanceCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.distanceLabel, { color: textSecColor }]}>To Pickup</Text>
-            <Text style={[styles.distanceValue, { color: textColor }]}>
-              {distanceToPickupKm !== null ? `${distanceToPickupKm.toFixed(1)}Km` : '—'}
-            </Text>
+            {distanceToPickupKm !== null ? (
+              <Text style={[styles.distanceValue, { color: textColor }]}>
+                {formatDistance(distanceToPickupKm, courier?.preferred_distance_unit)}
+              </Text>
+            ) : (
+              <ActivityIndicator size="small" color={textColor} style={{ marginTop: 8 }} />
+            )}
           </View>
           <View style={[styles.distanceCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.distanceLabel, { color: textSecColor }]}>Delivery Dist.</Text>
+            {deliveryDistKm !== null ? (
+              <Text style={[styles.distanceValue, { color: textColor }]}>
+                {formatDistance(deliveryDistKm, courier?.preferred_distance_unit)}
+              </Text>
+            ) : (
+              <ActivityIndicator size="small" color={textColor} style={{ marginTop: 8 }} />
+            )}
+          </View>
+        </View>
+
+        {/* ── Earn + Arrive In (side by side, half width each) ── */}
+        <View style={styles.distanceRow}>
+          <View style={[styles.distanceCard, { backgroundColor: cardBg }]}>
+            <Text style={[styles.distanceLabel, { color: textSecColor }]}>Earn</Text>
             <Text style={[styles.distanceValue, { color: textColor }]}>
-              {deliveryDistKm !== null ? `${deliveryDistKm.toFixed(1)}Km` : '—'}
+              {Math.round(delivery.points_offered || 0)} Points
+            </Text>
+          </View>
+          <View style={[styles.distanceCard, { backgroundColor: arriveInBg }]}>
+            <Text style={[styles.distanceLabel, { color: arriveInColor }]}>Arrive In</Text>
+            <Text style={[styles.arriveInValue, { color: arriveInColor }]}>
+              {minutesUntilPickup !== null ? `${Math.abs(minutesUntilPickup)} Min` : '—'}
             </Text>
           </View>
         </View>
 
-        {/* ── Points Offered card (full width) ── */}
-        <View style={[styles.pointsCard, { backgroundColor: cardBg }]}>
-          <Text style={[styles.distanceLabel, { color: textSecColor }]}>Points Offered</Text>
-          <Text style={[styles.pointsValue, { color: textColor }]}>
-            {Math.round(delivery.points_offered || 0)}
-          </Text>
+        {/* ── Slide To Accept (full width) ── */}
+        <View style={styles.slideToAcceptContainer}>
+          {accepting ? (
+            <View style={styles.acceptingContainer}>
+              <ActivityIndicator size="small" color="#27d20b" />
+              <Text style={[styles.acceptingText, { color: textSecColor }]}>Accepting...</Text>
+            </View>
+          ) : (
+            <SlideToAccept onSlideComplete={handleAccept} disabled={accepting || rejecting} />
+          )}
         </View>
 
-        {/* ── Arrive In + REJECT + ACCEPT card ── */}
-        <View style={[styles.arriveActionsCard, { backgroundColor: cardBg }]}>
-          <View style={styles.arriveActionsRow}>
-            <View style={styles.arriveInColumn}>
-              <Text style={[styles.distanceLabel, { color: textSecColor }]}>Arrive In</Text>
-              <Text style={[styles.arriveInValue, { color: textColor }]}>
-                {minutesUntilPickup !== null ? `${Math.abs(minutesUntilPickup)} Min` : '—'}
-              </Text>
+        {/* ── Slide To Reject ── */}
+        <View style={styles.slideToRejectContainer}>
+          {rejecting ? (
+            <View style={styles.rejectingContainer}>
+              <ActivityIndicator size="small" color="#EF4444" />
+              <Text style={[styles.rejectingText, { color: textSecColor }]}>Rejecting...</Text>
             </View>
-
-            <TouchableOpacity
-              style={styles.rejectButton}
-              onPress={() => handleReject(false)}
-              disabled={accepting || rejecting}
-              activeOpacity={0.7}
-            >
-              {rejecting ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.rejectButtonText}>REJECT</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.acceptButton}
-              onPress={handleAccept}
-              disabled={accepting || rejecting}
-              activeOpacity={0.7}
-            >
-              {accepting ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.acceptButtonText}>ACCEPT</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <SlideToReject onSlideComplete={() => handleReject(false)} disabled={accepting || rejecting} />
+          )}
         </View>
 
         {/* ── Exclusive countdown ── */}
         {countdown !== null && countdown > 0 && deliveryOffer?.type === 'exclusive' && (
           <Text style={styles.countdownText}>
             You have{' '}
-            <Text style={{ color: '#EF4444', fontFamily: fontFamily.bold }}>
-              {countdown} seconds
-            </Text>{' '}
+            <Text style={{ color: '#EF4444', fontFamily: fontFamily.bold }}>{countdown} seconds</Text>{' '}
             to accept or reject before it expires.
           </Text>
         )}
@@ -993,7 +1036,10 @@ export function OpenOfferScreen({
         {/* ── Map (locked – tap to expand) ── */}
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => { tapFeedback(); setShowMapFullscreen(true); }}
+          onPress={() => {
+            tapFeedback();
+            setShowMapFullscreen(true);
+          }}
           style={[styles.mapContainer, { backgroundColor: cardBg }]}
         >
           <MapView
@@ -1003,7 +1049,7 @@ export function OpenOfferScreen({
             initialRegion={fallbackRegion}
             showsUserLocation={false}
             showsMyLocationButton={false}
-            customMapStyle={DARK_MAP_STYLE}
+            customMapStyle={isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
             scrollEnabled={false}
             zoomEnabled={false}
             rotateEnabled={false}
@@ -1036,7 +1082,7 @@ export function OpenOfferScreen({
             initialRegion={fallbackRegion}
             showsUserLocation={false}
             showsMyLocationButton={false}
-            customMapStyle={DARK_MAP_STYLE}
+            customMapStyle={isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
             onMapReady={() => fitMap(fullscreenMapRef.current)}
           >
             {renderMapMarkers()}
@@ -1046,12 +1092,49 @@ export function OpenOfferScreen({
               styles.mapCloseButton,
               { top: insets.top + 12, backgroundColor: isDark ? '#FFFFFF' : '#000000' },
             ]}
-            onPress={() => { tapFeedback(); setShowMapFullscreen(false); }}
+            onPress={() => {
+              tapFeedback();
+              setShowMapFullscreen(false);
+            }}
             activeOpacity={0.8}
           >
             <X size={20} color={isDark ? '#000000' : '#FFFFFF'} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
+      </Modal>
+
+      {/* ── Points Lost Modal ── */}
+      <Modal
+        visible={showPointsLostModal}
+        animationType="fade"
+        transparent={false}
+        onRequestClose={handlePointsLostExit}
+      >
+        <ImageBackground
+          source={{ uri: POINTS_LOST_BG_URL }}
+          style={styles.pointsLostContainer}
+          resizeMode="cover"
+        >
+          <View style={styles.pointsLostContent}>
+            {/* Poop Icon - 25% smaller (was 180, now 135) */}
+            <Image source={{ uri: POOP_ICON_URL }} style={styles.poopIcon} resizeMode="contain" />
+
+            {/* Points Lost Text */}
+            <Text style={styles.pointsLostTitle}>
+              {pointsLost > 0 ? pointsLost : '?'} Points Lost
+            </Text>
+
+            {/* Subtitle - Updated text */}
+            <Text style={styles.pointsLostSubtitle}>
+              Rejecting offers costs you points. Not ready to deliver? Go offline to avoid penalties.
+            </Text>
+
+            {/* Exit Button */}
+            <TouchableOpacity style={styles.exitButton} onPress={handlePointsLostExit} activeOpacity={0.8}>
+              <Text style={styles.exitButtonText}>Exit</Text>
+            </TouchableOpacity>
+          </View>
+        </ImageBackground>
       </Modal>
     </View>
   );
@@ -1092,7 +1175,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
-    color: '#FFFFFF',
     textAlign: 'center',
   },
   headerAction: {
@@ -1113,17 +1195,16 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: 22,
   },
+  // 30% smaller badge with muted colors
   pendingBadge: {
-    borderWidth: 1.5,
-    borderColor: '#F97316',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
   },
   pendingBadgeText: {
     fontFamily: fontFamily.bold,
-    fontSize: 13,
-    color: '#F97316',
+    fontSize: 9,
     letterSpacing: 0.5,
   },
 
@@ -1150,64 +1231,46 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
 
-  // Points Offered card (separate, full width)
-  pointsCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-  },
-  pointsValue: {
-    fontFamily: fontFamily.bold,
-    fontSize: 22,
-  },
-
-  // Arrive In + buttons card
-  arriveActionsCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  arriveActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  arriveInColumn: {
-    flex: 1,
-  },
+  // Arrive In value (same size as distance value)
   arriveInValue: {
     fontFamily: fontFamily.bold,
     fontSize: 22,
   },
 
-  // Buttons
-  rejectButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+  // Slide To Accept container
+  slideToAcceptContainer: {
+    marginBottom: 10,
+  },
+  acceptingContainer: {
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: 'rgba(39, 210, 11, 0.15)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
   },
-  rejectButtonText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 14,
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
+  acceptingText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
   },
-  acceptButton: {
-    backgroundColor: '#27d20b',
-    borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+
+  // Slide To Reject container
+  slideToRejectContainer: {
+    marginBottom: 12,
+  },
+  rejectingContainer: {
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
   },
-  acceptButtonText: {
-    fontFamily: fontFamily.bold,
+  rejectingText: {
+    fontFamily: fontFamily.regular,
     fontSize: 14,
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
 
   // Countdown text
@@ -1282,6 +1345,52 @@ const styles = StyleSheet.create({
   centeredButtonText: {
     fontFamily: fontFamily.bold,
     fontSize: 16,
+    color: '#FFFFFF',
+  },
+
+  // Points Lost Modal
+  pointsLostContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  pointsLostContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  poopIcon: {
+    width: 135, // 25% smaller (was 180)
+    height: 135, // 25% smaller (was 180)
+    marginBottom: 24,
+  },
+  pointsLostTitle: {
+    fontFamily: fontFamily.bold,
+    fontSize: 32,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  pointsLostSubtitle: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  exitButton: {
+    backgroundColor: '#b76b38',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exitButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
     color: '#FFFFFF',
   },
 });

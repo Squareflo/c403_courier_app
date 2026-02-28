@@ -17,6 +17,7 @@ import { ChevronDown, LogOut, Moon, Star, Sun, User, X } from 'lucide-react-nati
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
+import { formatDistanceRound, getDistanceUnit, getPerDistanceLabel, formatDistance } from '../utils/distance';
 import { spacing } from '../constants/spacing';
 import SlideToOnline from '../components/ui/SlideToOnline';
 import { getCourierPeriodStats } from '../services/api';
@@ -94,9 +95,10 @@ function StarRating({ rating, size = 16 }: { rating: number; size?: number }) {
 
 interface DashboardScreenProps {
   onWentOnline?: () => void;
+  onDeliveryPress?: (deliveryId: string) => void;
 }
 
-export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
+export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScreenProps) {
   const { courier, signOut, refreshCourier } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -126,6 +128,7 @@ export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
   const firstName = courier?.first_name || 'Courier';
   const lastName = courier?.last_name || '';
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
+  const distUnit = courier?.preferred_distance_unit;
   const communityRaw = courier?.community || '';
   const cityProvince = communityRaw.includes(',')
     ? communityRaw.split(',').slice(0, 2).map(s => s.trim()).join(', ')
@@ -210,6 +213,14 @@ export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
       name: place?.name || 'Unknown',
       image: place?.profile_picture_url || null,
     };
+  };
+
+  // ── Handle delivery card press ──────────────────────────────────────────
+
+  const handleDeliveryPress = (deliveryId: string) => {
+    if (onDeliveryPress) {
+      onDeliveryPress(deliveryId);
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -308,16 +319,16 @@ export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{Math.round(stats.totalKm)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>KM</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgKmPerDelivery.toFixed(1)}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.statValue, { color: colors.text }]}>${stats.earningsPerKm.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per KM</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getPerDistanceLabel(distUnit)}</Text>
           </View>
         </ScrollView>
 
@@ -396,7 +407,12 @@ export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
               {recentDeliveries.map((item) => {
                 const place = getPlaceInfo(item);
                 return (
-                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card }]}>
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.recentCard, { backgroundColor: colors.card }]}
+                    onPress={() => handleDeliveryPress(item.id)}
+                    activeOpacity={0.7}
+                  >
                     {place.image ? (
                       <Image source={{ uri: place.image }} style={styles.recentCardImage} />
                     ) : (
@@ -407,7 +423,7 @@ export function DashboardScreen({ onWentOnline }: DashboardScreenProps) {
                     <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
                     <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.delivered_at)}</Text>
                     <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>${(item.courier_earnings || 0).toFixed(2)}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>

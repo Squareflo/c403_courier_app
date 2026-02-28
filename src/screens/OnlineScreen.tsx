@@ -13,18 +13,23 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { User, ZapOff } from 'lucide-react-native';
+import { Moon, Sun, User, ZapOff } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
 import { spacing } from '../constants/spacing';
 import { supabase } from '../lib/supabase';
 import { updateCourierOnlineStatus, getCourierPeriodStats } from '../services/api';
+import { formatDistance, formatDistanceRound, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
 import {
   startLocationTracking,
   stopLocationTracking,
   getCurrentLocation,
 } from '../services/locationService';
 import { useButtonFeedback } from '../hooks/useButtonFeedback';
+import SlideToOffline from '../components/ui/SlideToOffline';
+import { OfferCard } from '../components/ui/OfferCard';
+import { OpenOffersSection } from '../components/ui/OpenOffersSection';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -46,6 +51,16 @@ interface TodayStats {
   totalKm: number;
   avgKmPerDelivery: number;
   earningsPerKm: number;
+}
+
+interface CompletedDelivery {
+  id: string;
+  delivery_number: string | null;
+  courier_earnings: number | null;
+  points_earned: number | null;
+  delivery_distance_km: number | null;
+  delivered_at: string | null;
+  place: { name: string; profile_picture_url: string | null } | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -82,6 +97,7 @@ interface OnlineScreenProps {
 
 export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPress }: OnlineScreenProps) {
   const { courier, refreshCourier } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { tapFeedback } = useButtonFeedback();
   const insets = useSafeAreaInsets();
 
@@ -102,8 +118,9 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
   // Offers — only open offers (exclusive offers are handled by MainLayout forced screen)
   const [openOffers, setOpenOffers] = useState<any[]>([]);
-  const [rejectedOffers, setRejectedOffers] = useState<any[]>([]);
   const [acceptedDeliveries, setAcceptedDeliveries] = useState<any[]>([]);
+  const distUnit = courier?.preferred_distance_unit;
+  const [completedDeliveries, setCompletedDeliveries] = useState<CompletedDelivery[]>([]);
 
   // Online timer
   const [onlineSeconds, setOnlineSeconds] = useState(0);
@@ -141,14 +158,23 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       const open = data.filter((r: any) => r.offer_data?.type === 'open');
 
       if (open.length > 0) {
-        setOpenOffers(
-          open.map((r: any) => ({
-            ...r.delivery_data,
-            place_name: r.place_name,
-            customer_name: r.customer_name,
-            delivery_offer: r.offer_data,
-          }))
-        );
+        // Deduplicate by delivery_request id to prevent duplicate key errors
+        const uniqueOffers = new Map();
+        open.forEach((r: any) => {
+          if (!uniqueOffers.has(r.delivery_data.id)) {
+            uniqueOffers.set(r.delivery_data.id, {
+              ...r.delivery_data,
+              place_name: r.place_name,
+              place_profile_picture_url: r.place_profile_picture_url,
+              customer_name: r.customer_name,
+              place_address_line_1: r.place_address_line_1,
+              place_rating: r.place_rating,
+              place_total_reviews: r.place_total_reviews,
+              delivery_offer: r.offer_data,
+            });
+          }
+        });
+        setOpenOffers(Array.from(uniqueOffers.values()));
       } else {
         setOpenOffers([]);
       }
@@ -157,63 +183,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       setOpenOffers([]);
     }
   }, [courier?.id]);
-
-  // ── Load previously rejected open offers that are still available ───────
-
-  const loadRejectedOffers = useCallback(async () => {
-    if (!courier?.id) return;
-
-    try {
-      // Find delivery_requests where:
-      // 1. Status is still waiting_for_courier_to_accept (unclaimed)
-      // 2. This courier's ID is in rejected_by_couriers JSONB array
-      // No need to check delivery_offer — the offer row status changes to rejected
-      // but the delivery_request itself is still open for acceptance
-      const { data, error } = await supabase
-        .from('delivery_request')
-        .select(
-          `id, delivery_number, status, pickup_address, pickup_eta,
-           delivery_distance_km, points_offered,
-           rejected_by_couriers,
-           place:place_id (name, profile_picture_url)`
-        )
-        .eq('status', 'waiting_for_courier_to_accept')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error || !data) {
-        console.error('[OnlineScreen] Error loading rejected offers:', error);
-        setRejectedOffers([]);
-        return;
-      }
-
-      // Filter in JS — check if courier's ID appears in rejected_by_couriers
-      const rejected = data.filter((dr: any) => {
-        const rejectedList = dr.rejected_by_couriers || [];
-        return (
-          Array.isArray(rejectedList) &&
-          rejectedList.some((r: any) => r.courier_id === courier.id)
-        );
-      });
-
-      // Exclude any that already appear in the openOffers list (no duplicates)
-      const openOfferIds = new Set(openOffers.map((o: any) => o.id));
-      const filtered = rejected.filter((dr: any) => !openOfferIds.has(dr.id));
-
-      setRejectedOffers(
-        filtered.map((dr: any) => {
-          const place = Array.isArray(dr.place) ? dr.place[0] : dr.place;
-          return {
-            ...dr,
-            place_name: place?.name || 'Unknown',
-          };
-        })
-      );
-    } catch (err) {
-      console.error('[OnlineScreen] Error loading rejected offers:', err);
-      setRejectedOffers([]);
-    }
-  }, [courier?.id, openOffers]);
 
   // ── Load accepted (in-progress) deliveries ──────────────────────────────
 
@@ -237,6 +206,37 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     }
   }, [courier?.id]);
 
+  // ── Load completed deliveries for today ─────────────────────────────────
+
+  const loadCompletedDeliveries = useCallback(async () => {
+    if (!courier?.id) return;
+
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const { data, error } = await supabase
+        .from('delivery_request')
+        .select('id, delivery_number, courier_earnings, points_earned, delivery_distance_km, delivered_at, place:place_id(name, profile_picture_url)')
+        .eq('courier_id', courier.id)
+        .eq('status', 'delivered')
+        .gte('delivered_at', todayStart.toISOString())
+        .order('delivered_at', { ascending: false })
+        .limit(20);
+
+      if (!error && data) {
+        setCompletedDeliveries(
+          data.map((d: any) => ({
+            ...d,
+            place: Array.isArray(d.place) ? d.place[0] : d.place,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('[OnlineScreen] Error loading completed deliveries:', err);
+    }
+  }, [courier?.id]);
+
   // ── Load today's stats ──────────────────────────────────────────────────
 
   const loadStats = useCallback(async () => {
@@ -255,14 +255,8 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   // ── Load all data ───────────────────────────────────────────────────────
 
   const loadAllData = useCallback(async () => {
-    await Promise.all([loadStats(), loadOffers(), loadAcceptedDeliveries()]);
-  }, [loadStats, loadOffers, loadAcceptedDeliveries]);
-
-  // ── Load rejected offers after openOffers are loaded ────────────────────
-
-  useEffect(() => {
-    loadRejectedOffers();
-  }, [openOffers]);
+    await Promise.all([loadStats(), loadOffers(), loadAcceptedDeliveries(), loadCompletedDeliveries()]);
+  }, [loadStats, loadOffers, loadAcceptedDeliveries, loadCompletedDeliveries]);
 
   // ── Initial load ────────────────────────────────────────────────────────
 
@@ -300,8 +294,8 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           await supabase
             .from('customer')
             .update({
-              current_location_latitude: loc.coords.latitude,
-              current_location_longitude: loc.coords.longitude,
+              current_location_latitude: loc.latitude,
+              current_location_longitude: loc.longitude,
             })
             .eq('id', courier.id);
         }
@@ -394,6 +388,13 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     }
   };
 
+  // ── Theme toggle ────────────────────────────────────────────────────────
+
+  const handleThemeToggle = () => {
+    tapFeedback();
+    toggleTheme();
+  };
+
   // ── Offer card press ────────────────────────────────────────────────────
 
   const handleOfferPress = (offer: any) => {
@@ -401,14 +402,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     const offerType = offer.delivery_offer?.type === 'exclusive' ? 'exclusive' : 'open';
     console.log('[OnlineScreen] Offer pressed:', offer.id, 'type:', offerType);
     onOfferPress?.(offer.id, offerType as 'open' | 'exclusive');
-  };
-
-  // ── Rejected offer press (re-open the offer detail screen) ──────────────
-
-  const handleRejectedOfferPress = (offer: any) => {
-    tapFeedback();
-    console.log('[OnlineScreen] Rejected offer pressed:', offer.id);
-    onOfferPress?.(offer.id, 'open');
   };
 
   // ── Accepted delivery press ─────────────────────────────────────────────
@@ -419,22 +412,21 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     onAcceptedDeliveryPress?.(deliveryId);
   };
 
-  // ── Always dark theme colors ────────────────────────────────────────────
+  // ── Theme-aware colors ──────────────────────────────────────────────────
 
-  const bg = '#000000';
-  const cardBg = '#2a2a2a';
-  const textColor = '#FFFFFF';
-  const textSecColor = '#9CA3AF';
+  const bg = colors.backgroundSecondary;
+  const cardBg = colors.card;
+  const textColor = colors.text;
+  const textSecColor = colors.textTertiary;
 
   const profileImage = courier?.profile_picture_url || null;
   const totalOffers = openOffers.length;
-  const totalRejected = rejectedOffers.length;
 
   if (loading) {
     return (
       <View style={[styles.screen, { backgroundColor: bg, paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ec2227" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
@@ -446,36 +438,50 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 8 }]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ec2227" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: Profile pic + "● Online" + ZapOff ── */}
+        {/* ── Header: Profile pic + "● Online" + Theme toggle + ZapOff ── */}
         <View style={styles.header}>
           {profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
           ) : (
-            <View style={[styles.headerProfileImage, { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }]}>
-              <User size={20} color="#666" />
+            <View style={[styles.headerProfileImage, { backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }]}>
+              <User size={20} color={colors.textMuted} />
             </View>
           )}
 
           <View style={styles.headerCenter}>
             <View style={styles.onlineDot} />
-            <Text style={styles.onlineText}>Online</Text>
+            <Text style={[styles.onlineText, { color: textColor }]}>Online</Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.headerAction, hasActiveDeliveries && { opacity: 0.3 }]}
-            onPress={handleZapOffPress}
-            activeOpacity={0.7}
-          >
-            <ZapOff size={24} color={textColor} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.headerAction}
+              onPress={handleThemeToggle}
+              activeOpacity={0.7}
+            >
+              {isDark ? (
+                <Sun size={22} color={textColor} />
+              ) : (
+                <Moon size={22} color={textColor} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.headerAction, hasActiveDeliveries && { opacity: 0.3 }]}
+              onPress={handleZapOffPress}
+              activeOpacity={0.7}
+            >
+              <ZapOff size={24} color={textColor} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── "Today" label ── */}
-        <Text style={styles.todayLabel}>Today</Text>
+        <Text style={[styles.todayLabel, { color: textColor }]}>Today</Text>
 
         {/* ── Stats Row (horizontal scroll) ── */}
         <ScrollView
@@ -501,20 +507,20 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
             <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{Math.round(stats.totalKm)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>KM</Text>
+            <Text style={[styles.statValue, { color: textColor }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>{getDistanceUnit(distUnit)}</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{stats.avgKmPerDelivery.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
+            <Text style={[styles.statValue, { color: textColor }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>Distance</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.statValue, { color: textColor }]}>${stats.earningsPerKm.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per KM</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>{getPerDistanceLabel(distUnit)}</Text>
           </View>
         </ScrollView>
 
-        {/* ── Accepted Deliveries Section (shown first) ── */}
+        {/* ── Accepted Deliveries Section (uses OfferCard, same as open offers) ── */}
         {acceptedDeliveries.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
@@ -523,131 +529,72 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
             {acceptedDeliveries.map((delivery) => {
               const place = Array.isArray(delivery.place) ? delivery.place[0] : delivery.place;
               return (
-                <TouchableOpacity
+                <OfferCard
                   key={delivery.id}
-                  style={[styles.offerCard, { backgroundColor: cardBg }]}
-                  activeOpacity={0.7}
+                  placeName={place?.name || 'Unknown Place'}
+                  placeImage={place?.profile_picture_url || null}
+                  points={delivery.points_offered || 0}
+                  distanceKm={delivery.delivery_distance_km || 0}
+                  pickupEta={delivery.pickup_eta}
                   onPress={() => handleAcceptedPress(delivery.id)}
-                >
-                  <View style={styles.offerCardContent}>
-                    <View style={styles.offerInfo}>
-                      <Text style={[styles.offerPoints, { color: textColor }]}>
-                        {Math.round(delivery.points_offered || 0).toLocaleString()} Points
-                      </Text>
-                      <Text style={[styles.offerDeliveryNumber, { color: textSecColor }]}>
-                        {place?.name || 'Unknown Place'}
-                      </Text>
-                      <Text style={[styles.offerDistance, { color: textSecColor }]}>
-                        {(delivery.delivery_distance_km || 0).toFixed(1)}KM Away
-                      </Text>
-                    </View>
-                    {renderArriveInBadge(delivery.pickup_eta)}
-                  </View>
-                </TouchableOpacity>
+                  status={delivery.status}
+                  distanceUnit={distUnit}
+                />
               );
             })}
           </>
         )}
 
-        {/* ── Open Offers Section ── */}
-        <View style={[styles.sectionHeader, acceptedDeliveries.length > 0 && { marginTop: spacing.xl }]}>
-          <Text style={[styles.sectionTitle, { color: textColor }]}>
-            {totalOffers} Open Offer{totalOffers !== 1 ? 's' : ''}
-          </Text>
-          {totalOffers > 0 && (
-            <TouchableOpacity>
-              <Text style={[styles.viewAllText, { color: textSecColor }]}>View All</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* ── Open Offers Section (shared component) ── */}
+        <OpenOffersSection
+          offers={openOffers}
+          onOfferPress={handleOfferPress}
+        />
 
-        {/* Open Offers (vertical list) — exclusive offers never shown here */}
-        {openOffers.map((offer) => (
-          <TouchableOpacity
-            key={offer.id}
-            style={[styles.offerCard, { backgroundColor: cardBg }]}
-            onPress={() => handleOfferPress(offer)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.offerCardContent}>
-              <View style={styles.offerInfo}>
-                <Text style={[styles.offerPoints, { color: textColor }]}>
-                  {Math.round(offer.points_offered || 0).toLocaleString()} Points
-                </Text>
-                <Text style={[styles.offerDeliveryNumber, { color: textSecColor }]}>
-                  {offer.place_name || `Delivery #${offer.delivery_number || offer.id?.slice(-6).toUpperCase()}`}
-                </Text>
-                <Text style={[styles.offerDistance, { color: textSecColor }]}>
-                  {(offer.delivery_distance_km || 0).toFixed(1)}KM Away
-                </Text>
-              </View>
-              {renderArriveInBadge(offer.pickup_eta)}
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* No offers empty state */}
-        {totalOffers === 0 && (
-          <Text style={styles.noOffersText}>Sorry, you have no open offers.</Text>
-        )}
-
-        {/* ── Previously Rejected Section ── */}
-        {totalRejected > 0 && (
+        {/* ── Completed Deliveries Today (horizontal slider) ── */}
+        {completedDeliveries.length > 0 && (
           <>
             <View style={[styles.sectionHeader, { marginTop: spacing.xl }]}>
               <Text style={[styles.sectionTitle, { color: textColor }]}>
-                {totalRejected} Previously Rejected
+                Completed
               </Text>
             </View>
 
-            <Text style={styles.rejectedSubtext}>
-              You rejected these offers but they're still available. Tap to view again.
-            </Text>
-
-            {rejectedOffers.map((offer) => (
-              <TouchableOpacity
-                key={offer.id}
-                style={[styles.offerCard, { backgroundColor: cardBg, borderLeftWidth: 3, borderLeftColor: '#EF4444' }]}
-                onPress={() => handleRejectedOfferPress(offer)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.offerCardContent}>
-                  <View style={styles.offerInfo}>
-                    <Text style={[styles.offerPoints, { color: textColor }]}>
-                      {Math.round(offer.points_offered || 0).toLocaleString()} Points
-                    </Text>
-                    <Text style={[styles.offerDeliveryNumber, { color: textSecColor }]}>
-                      {offer.place_name || `Delivery #${offer.delivery_number || offer.id?.slice(-6).toUpperCase()}`}
-                    </Text>
-                    <Text style={[styles.offerDistance, { color: textSecColor }]}>
-                      {(offer.delivery_distance_km || 0).toFixed(1)}KM Away
-                    </Text>
-                  </View>
-                  {renderArriveInBadge(offer.pickup_eta)}
-                </View>
-              </TouchableOpacity>
-            ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.completedScrollContent}
+            >
+              {completedDeliveries.map((delivery) => (
+                <TouchableOpacity
+                  key={delivery.id}
+                  style={[styles.completedCard, { backgroundColor: cardBg }]}
+                  onPress={() => handleAcceptedPress(delivery.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.completedEarnings, { color: textColor }]}>
+                    ${(delivery.courier_earnings || 0).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.completedPlace, { color: textSecColor }]} numberOfLines={1}>
+                    {delivery.place?.name || 'Unknown'}
+                  </Text>
+                  <Text style={[styles.completedDistance, { color: textSecColor }]}>
+                    {formatDistance(delivery.delivery_distance_km || 0, distUnit)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </>
         )}
 
-        {/* ── Online Timer + Go Offline (hidden when active deliveries) ── */}
+        {/* ── Go Offline Section (hidden when active deliveries) ── */}
         {!hasActiveDeliveries && (
           <View style={styles.offlineSection}>
-            <Text style={styles.onlineTimerText}>
-              <Text style={{ fontFamily: fontFamily.semiBold }}>
-                You've been online for {formatOnlineTime(onlineSeconds)}.
-              </Text>
-              {'  '}
-              <Text style={{ color: textSecColor }}>Need to take a break?</Text>
+            <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
+              Not available to do deliveries, or just need a break?
             </Text>
 
-            <TouchableOpacity
-              style={styles.goOfflineButton}
-              onPress={() => { tapFeedback(); handleGoOffline(); }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.goOfflineButtonText}>GO OFFLINE</Text>
-            </TouchableOpacity>
+            <SlideToOffline onSlideComplete={handleGoOffline} />
           </View>
         )}
 
@@ -661,14 +608,14 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         animationType="fade"
         onRequestClose={() => setShowOfflineModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Can't Go Offline</Text>
-            <Text style={styles.modalText}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.modalBackground }]}>
+            <Text style={[styles.modalTitle, { color: textColor }]}>Can't Go Offline</Text>
+            <Text style={[styles.modalText, { color: textSecColor }]}>
               You have active deliveries. Complete all your deliveries before going offline.
             </Text>
             <TouchableOpacity
-              style={styles.modalButton}
+              style={[styles.modalButton, { backgroundColor: colors.primary }]}
               onPress={() => { tapFeedback(); setShowOfflineModal(false); }}
               activeOpacity={0.7}
             >
@@ -677,25 +624,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           </View>
         </View>
       </Modal>
-    </View>
-  );
-}
-
-// ─── Helper: Arrive In Badge (used for BOTH offers and accepted) ────────────
-
-function renderArriveInBadge(pickupEta: string | null) {
-  const minutes = calculateMinutesUntilPickup(pickupEta);
-  if (minutes === null) return null;
-
-  const isLate = minutes < 0;
-  const bgColor = isLate ? '#ec2227' : '#27d20b';
-
-  return (
-    <View style={[styles.arriveInBadge, { backgroundColor: bgColor }]}>
-      <Text style={styles.arriveInBadgeLabel}>Arrive In</Text>
-      <Text style={styles.arriveInBadgeValue}>
-        {minutes} Min
-      </Text>
     </View>
   );
 }
@@ -732,8 +660,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   headerCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   onlineDot: {
@@ -745,7 +677,11 @@ const styles = StyleSheet.create({
   onlineText: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
-    color: '#FFFFFF',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   headerAction: {
     width: 40,
@@ -758,7 +694,6 @@ const styles = StyleSheet.create({
   todayLabel: {
     fontFamily: fontFamily.regular,
     fontSize: 22,
-    color: '#FFFFFF',
     paddingHorizontal: 16,
     marginBottom: 12,
   },
@@ -807,81 +742,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Offer cards (shared for offers AND accepted deliveries)
-  offerCard: {
-    marginHorizontal: 16,
+  // Completed deliveries slider
+  completedScrollContent: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  completedCard: {
+    minWidth: 120,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-  },
-  offerCardHorizontal: {
-    marginHorizontal: 0,
-    marginRight: 12,
-    width: SCREEN_WIDTH * 0.75,
-    maxWidth: 400,
-  },
-  offerCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  offerInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  offerPoints: {
-    fontFamily: fontFamily.regular,
-    fontSize: 16,
-  },
-  offerDeliveryNumber: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-  },
-  offerDistance: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-  },
-  offersScrollContent: {
-    paddingHorizontal: 16,
-  },
-
-  // Arrive In badge (green/red)
-  arriveInBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 90,
   },
-  arriveInBadgeLabel: {
-    fontFamily: fontFamily.regular,
-    fontSize: 11,
-    color: '#FFFFFF',
-  },
-  arriveInBadgeValue: {
+  completedEarnings: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
-    color: '#FFFFFF',
   },
-
-  // No offers
-  noOffersText: {
+  completedPlace: {
     fontFamily: fontFamily.regular,
-    fontSize: 14,
-    color: '#6B7280',
-    paddingHorizontal: 16,
+    fontSize: 12,
     marginTop: 4,
+    maxWidth: 100,
+    textAlign: 'center',
   },
-
-  // Rejected offers subtext
-  rejectedSubtext: {
+  completedDistance: {
     fontFamily: fontFamily.regular,
-    fontSize: 13,
-    color: '#9CA3AF',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    lineHeight: 18,
+    fontSize: 11,
+    marginTop: 2,
   },
 
   // Offline section
@@ -889,48 +777,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: spacing.xl,
   },
-  onlineTimerText: {
+  offlinePromptText: {
     fontFamily: fontFamily.regular,
     fontSize: 14,
-    color: '#FFFFFF',
     marginBottom: 16,
     lineHeight: 20,
-  },
-  goOfflineButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: SCREEN_WIDTH * 0.55,
-    maxWidth: 300,
-  },
-  goOfflineButtonDisabled: {
-    opacity: 0.4,
-  },
-  goOfflineButtonText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 16,
-    color: '#000000',
-    letterSpacing: 1,
-  },
-  cantGoOfflineText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    color: '#EF4444',
-    marginTop: 8,
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
   },
   modalContent: {
-    backgroundColor: '#2a2a2a',
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -940,19 +801,16 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: fontFamily.bold,
     fontSize: 20,
-    color: '#FFFFFF',
     marginBottom: 12,
   },
   modalText: {
     fontFamily: fontFamily.regular,
     fontSize: 15,
-    color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
   },
   modalButton: {
-    backgroundColor: '#ec2227',
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 40,
