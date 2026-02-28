@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
+import { WalletScreen } from './WalletScreen';
 import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
@@ -554,7 +555,7 @@ export function MainLayout() {
       case 'deliveries':
         return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} />;
       case 'wallet':
-        return <PlaceholderScreen title="Wallet" />;
+        return <WalletScreen />;
       case 'messages':
         return <PlaceholderScreen title="Messages" />;
       case 'reviews':
