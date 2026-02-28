@@ -619,6 +619,7 @@ const styles = StyleSheet.create({
   },
   statsScrollContent: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 10,
   },
   statCard: {
@@ -661,6 +662,7 @@ const styles = StyleSheet.create({
   // Horizontal list
   horizontalListContent: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 12,
   },
 

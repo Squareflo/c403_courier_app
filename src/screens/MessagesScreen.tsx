@@ -563,6 +563,7 @@ const styles = StyleSheet.create({
   itemsContainer: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    paddingBottom: 8,
   },
   itemCard: {
     flexDirection: 'row',
