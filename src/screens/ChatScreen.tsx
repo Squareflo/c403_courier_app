@@ -227,7 +227,7 @@ export function ChatScreen({ chatId, onBack }: ChatScreenProps) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
         <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn}><ArrowLeft size={24} color={colors.text} /></TouchableOpacity>
           <Text style={[styles.headerName, { color: colors.text }]}>Chat</Text>
@@ -239,7 +239,7 @@ export function ChatScreen({ chatId, onBack }: ChatScreenProps) {
 
   if (!chat) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
         <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn}><ArrowLeft size={24} color={colors.text} /></TouchableOpacity>
           <Text style={[styles.headerName, { color: colors.text }]}>Chat not found</Text>
@@ -255,7 +255,7 @@ export function ChatScreen({ chatId, onBack }: ChatScreenProps) {
   const participant = chat.otherParticipant;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
