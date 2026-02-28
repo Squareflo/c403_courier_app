@@ -206,7 +206,7 @@ export function ChatScreen({ chatId, onBack }: ChatScreenProps) {
         <View style={[
           styles.bubble,
           isOwn ? [styles.ownBubble, { backgroundColor: isDark ? '#fff' : '#000' }]
-                : [styles.otherBubble, { backgroundColor: colors.card }],
+                : [styles.otherBubble, { backgroundColor: colors.card, shadowColor: colors.shadow }],
         ]}>
           {item.messageType === 'image' && item.mediaUrl && (
             <Image source={{ uri: item.mediaUrl }} style={styles.msgImage} resizeMode="cover" />
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   otherMessage: { alignSelf: 'flex-start' },
   bubble: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   ownBubble: { borderBottomRightRadius: 6 },
-  otherBubble: { borderBottomLeftRadius: 6 },
+  otherBubble: { borderBottomLeftRadius: 6, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   msgText: { fontSize: 15, lineHeight: 20 },
   msgImage: { width: 200, height: 200, borderRadius: 12, marginBottom: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginLeft: 4, gap: 4 },
