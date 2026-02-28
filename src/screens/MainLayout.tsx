@@ -19,6 +19,8 @@ import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
 import { WalletScreen } from './WalletScreen';
 import { MessagesScreen } from './MessagesScreen';
+import { MessageDetailScreen } from './MessageDetailScreen';
+import { ChatScreen } from './ChatScreen';
 import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
@@ -62,6 +64,8 @@ export function MainLayout() {
 
   // Viewing completed delivery from dashboard (offline mode)
   const [viewingDeliveryId, setViewingDeliveryId] = useState<string | null>(null);
+  const [viewingMessageId, setViewingMessageId] = useState<string | null>(null);
+  const [viewingChatId, setViewingChatId] = useState<string | null>(null);
 
   // Forced exclusive offer state — takes over entire app
   const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
@@ -558,7 +562,7 @@ export function MainLayout() {
       case 'wallet':
         return <WalletScreen />;
       case 'messages':
-        return <MessagesScreen />;
+        return <MessagesScreen onMessagePress={(id) => setViewingMessageId(id)} onChatPress={(id) => setViewingChatId(id)} />;
       case 'reviews':
         return <PlaceholderScreen title="Reviews" />;
       case 'referrals':
@@ -574,6 +578,20 @@ export function MainLayout() {
     <SafeAreaProvider>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <View style={styles.content}>{renderScreen()}</View>
+
+        {/* Message Detail Overlay */}
+        {viewingMessageId && (
+          <View style={StyleSheet.absoluteFill}>
+            <MessageDetailScreen messageId={viewingMessageId} onBack={() => setViewingMessageId(null)} />
+          </View>
+        )}
+
+        {/* Chat Overlay */}
+        {viewingChatId && (
+          <View style={StyleSheet.absoluteFill}>
+            <ChatScreen chatId={viewingChatId} onBack={() => setViewingChatId(null)} />
+          </View>
+        )}
         <BottomNav activeTab={activeTab} onTabPress={handleTabPress} />
       </View>
     </SafeAreaProvider>
