@@ -65,6 +65,19 @@ interface CompletedDelivery {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const now = new Date();
+  const d = new Date(dateStr);
+  const diffMs = now.getTime() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 function formatLargeNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
@@ -512,7 +525,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.statValue, { color: textColor }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Distance</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.statValue, { color: textColor }]}>${stats.earningsPerKm.toFixed(1)}</Text>
@@ -568,19 +581,25 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
               {completedDeliveries.map((delivery) => (
                 <TouchableOpacity
                   key={delivery.id}
-                  style={[styles.completedCard, { backgroundColor: cardBg }]}
+                  style={[styles.completedCard, { backgroundColor: cardBg, minWidth: SCREEN_WIDTH < 400 ? SCREEN_WIDTH / 1.3 : SCREEN_WIDTH / 3 }]}
                   onPress={() => handleAcceptedPress(delivery.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.completedEarnings, { color: textColor }]}>
-                    ${(delivery.courier_earnings || 0).toFixed(2)}
-                  </Text>
-                  <Text style={[styles.completedPlace, { color: textSecColor }]} numberOfLines={1}>
-                    {delivery.place?.name || 'Unknown'}
-                  </Text>
-                  <Text style={[styles.completedDistance, { color: textSecColor }]}>
-                    {formatDistance(delivery.delivery_distance_km || 0, distUnit)}
-                  </Text>
+                  {delivery.place?.profile_picture_url ? (
+                    <Image source={{ uri: delivery.place.profile_picture_url }} style={styles.completedCardImage} />
+                  ) : (
+                    <View style={[styles.completedCardImage, { backgroundColor: isDark ? '#1a1a1a' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
+                      <User size={20} color={textSecColor} />
+                    </View>
+                  )}
+                  <View style={styles.completedCardContent}>
+                    <Text style={[styles.completedPlace, { color: textColor }]} numberOfLines={1}>
+                      {delivery.place?.name || 'Unknown'}
+                    </Text>
+                    <Text style={[styles.completedDetail, { color: textSecColor }]} numberOfLines={1}>
+                      Earned ${(delivery.courier_earnings || 0).toFixed(2)} {'•'} {timeAgo(delivery.delivered_at)}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -748,28 +767,28 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   completedCard: {
-    minWidth: 120,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
     borderRadius: 12,
+    padding: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
   },
-  completedEarnings: {
-    fontFamily: fontFamily.bold,
-    fontSize: 18,
+  completedCardImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  completedCardContent: {
+    flex: 1,
+    gap: 1,
   },
   completedPlace: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    marginTop: 4,
-    maxWidth: 100,
-    textAlign: 'center',
+    fontFamily: fontFamily.semiBold,
+    fontSize: 13,
   },
-  completedDistance: {
+  completedDetail: {
     fontFamily: fontFamily.regular,
     fontSize: 11,
-    marginTop: 2,
   },
 
   // Offline section

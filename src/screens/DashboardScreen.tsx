@@ -409,20 +409,21 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.recentCard, { backgroundColor: colors.card }]}
+                    style={[styles.deliveryCard, { backgroundColor: colors.card }]}
                     onPress={() => handleDeliveryPress(item.id)}
                     activeOpacity={0.7}
                   >
                     {place.image ? (
-                      <Image source={{ uri: place.image }} style={styles.recentCardImage} />
+                      <Image source={{ uri: place.image }} style={styles.deliveryCardImage} />
                     ) : (
-                      <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
+                      <View style={[styles.deliveryCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
                         <User size={20} color={colors.textMuted} />
                       </View>
                     )}
-                    <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
-                    <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.delivered_at)}</Text>
-                    <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>${(item.courier_earnings || 0).toFixed(2)}</Text>
+                    <View style={styles.deliveryCardContent}>
+                      <Text style={[styles.deliveryCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
+                      <Text style={[styles.deliveryCardTime, { color: colors.textSecondary }]} numberOfLines={1}>Earned ${(item.courier_earnings || 0).toFixed(2)} • {timeAgo(item.delivered_at)}</Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -702,6 +703,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   recentCardValue: {
+    fontFamily: fontFamily.bold,
+    fontSize: 14,
+  },
+
+  // Recent Deliveries cards (horizontal layout)
+  deliveryCard: {
+    borderRadius: 12,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: SCREEN_WIDTH < 400 ? SCREEN_WIDTH / 1.3 : SCREEN_WIDTH / 3,
+  },
+  deliveryCardImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  deliveryCardContent: {
+    flex: 1,
+    gap: 1,
+  },
+  deliveryCardName: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 13,
+  },
+  deliveryCardTime: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+  },
+  deliveryCardValue: {
     fontFamily: fontFamily.bold,
     fontSize: 14,
   },

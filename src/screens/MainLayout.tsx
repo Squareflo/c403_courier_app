@@ -16,6 +16,7 @@ import { useButtonFeedback } from '../hooks/useButtonFeedback';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
+import { DeliveriesScreen } from './DeliveriesScreen';
 import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
@@ -551,7 +552,7 @@ export function MainLayout() {
           />
         );
       case 'deliveries':
-        return <PlaceholderScreen title="Deliveries" />;
+        return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} />;
       case 'wallet':
         return <PlaceholderScreen title="Wallet" />;
       case 'messages':
