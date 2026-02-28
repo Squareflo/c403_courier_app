@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
   balanceCard: {
     borderRadius: 14,
     padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -285,6 +286,7 @@ const styles = StyleSheet.create({
   transactionCard: {
     borderRadius: 12,
     padding: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     marginBottom: 10,
   },
   transactionRow: {

@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  messageCard: { borderRadius: 16, padding: 16, gap: 12 },
+  messageCard: { borderRadius: 16, padding: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   senderIcon: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
