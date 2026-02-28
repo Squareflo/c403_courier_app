@@ -623,6 +623,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     minWidth: 100,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -669,6 +670,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     borderRadius: 12,
     padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
   },
   reviewText: {
     fontFamily: fontFamily.regular,
@@ -685,6 +687,7 @@ const styles = StyleSheet.create({
     width: 140,
     borderRadius: 12,
     padding: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     alignItems: 'center',
     gap: 6,
   },
@@ -711,6 +714,7 @@ const styles = StyleSheet.create({
   deliveryCard: {
     borderRadius: 12,
     padding: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
