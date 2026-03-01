@@ -103,7 +103,7 @@ function TransactionItem({ transaction, colors }: TransactionItemProps) {
   );
 }
 
-export function WalletScreen() {
+export function WalletScreen({ onBack }: { onBack?: () => void }) {
   const { courier } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -147,13 +147,9 @@ export function WalletScreen() {
     <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-        ) : (
-          <View style={[styles.headerProfileImage, { backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }]}>
-            <User size={20} color={colors.textMuted} />
-          </View>
-        )}
+        <TouchableOpacity onPress={onBack} style={styles.headerBackButton}>
+          <ChevronLeft size={26} color={colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Wallet</Text>
         <View style={{ width: 36 }} />
       </View>

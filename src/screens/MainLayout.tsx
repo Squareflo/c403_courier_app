@@ -560,12 +560,13 @@ export function MainLayout() {
           />
         );
       case 'deliveries':
-        return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} />;
+        return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} onBack={() => setActiveTab('dashboard')} />;
       case 'wallet':
-        return <WalletScreen />;
+        return <WalletScreen onBack={() => setActiveTab('dashboard')} />;
       case 'messages':
         return (
           <MessagesScreen
+            onBack={() => setActiveTab('dashboard')}
             onMessagePress={(id) => setViewingMessageId(id)}
             onChatPress={(id) => setViewingChatId(id)}
             markMessageReadLocally={lastReadMessageId}

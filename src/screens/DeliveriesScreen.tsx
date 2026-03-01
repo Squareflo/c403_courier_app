@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, User, X } from 'lucide-react-native';
+import { Search, User, X, ChevronLeft } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
@@ -51,9 +51,10 @@ function timeAgo(dateStr: string | null): string {
 
 interface DeliveriesScreenProps {
   onDeliveryPress?: (deliveryId: string) => void;
+  onBack?: () => void;
 }
 
-export function DeliveriesScreen({ onDeliveryPress }: DeliveriesScreenProps) {
+export function DeliveriesScreen({ onDeliveryPress, onBack }: DeliveriesScreenProps) {
   const { courier } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -162,13 +163,9 @@ export function DeliveriesScreen({ onDeliveryPress }: DeliveriesScreenProps) {
     <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-        ) : (
-          <View style={[styles.headerProfileImage, { backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }]}>
-            <User size={20} color={colors.textMuted} />
-          </View>
-        )}
+        <TouchableOpacity onPress={onBack} style={styles.headerBackButton}>
+          <ChevronLeft size={26} color={colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Deliveries</Text>
         <TouchableOpacity style={styles.headerAction} onPress={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery(''); }}>
           {showSearch ? <X size={22} color={colors.text} /> : <Search size={22} color={colors.text} />}
@@ -229,6 +226,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
+  },
+  headerBackButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerProfileImage: {
     width: 36,

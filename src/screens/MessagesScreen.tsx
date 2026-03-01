@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mail, MailOpen, MailX, Bell, MessagesSquare, User, Send } from 'lucide-react-native';
+import { Mail, MailOpen, MailX, Bell, MessagesSquare, User, Send, ChevronLeft } from 'lucide-react-native';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -77,13 +77,14 @@ function formatTagLabel(tag: string): string {
 }
 
 interface MessagesScreenProps {
+  onBack?: () => void;
   onMessagePress?: (messageId: string) => void;
   onChatPress?: (chatId: string) => void;
   markMessageReadLocally?: string | null;
   markChatReadLocally?: string | null;
 }
 
-export function MessagesScreen({ onMessagePress, onChatPress, markMessageReadLocally, markChatReadLocally }: MessagesScreenProps) {
+export function MessagesScreen({ onBack, onMessagePress, onChatPress, markMessageReadLocally, markChatReadLocally }: MessagesScreenProps) {
   const { courier } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -392,13 +393,9 @@ export function MessagesScreen({ onMessagePress, onChatPress, markMessageReadLoc
     <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-        ) : (
-          <View style={[styles.headerProfileImage, { backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }]}>
-            <User size={20} color={colors.textMuted} />
-          </View>
-        )}
+        <TouchableOpacity onPress={onBack} style={styles.headerBackButton}>
+          <ChevronLeft size={26} color={colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
         <View style={{ width: 36 }} />
       </View>
