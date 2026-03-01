@@ -289,7 +289,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
               <Text style={[styles.profileCity, { color: colors.textSecondary }]} numberOfLines={1}>{cityProvince}</Text>
               {courierReviewCount > 0 ? (
                 <View style={styles.ratingRow}>
-                  <Text style={[styles.ratingNumber, { color: '#27d20b' }]}>{courierRating.toFixed(1)}</Text>
+                  <Text style={[styles.ratingNumber, { color: '#FFD700' }]}>{courierRating.toFixed(1)}</Text>
                   <StarRating rating={courierRating} size={12} />
                   <Text style={[styles.reviewCount, { color: colors.textSecondary }]}>{courierReviewCount} Reviews</Text>
                 </View>
