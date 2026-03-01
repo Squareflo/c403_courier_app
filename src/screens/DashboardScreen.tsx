@@ -344,49 +344,6 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
           </View>
         </ScrollView>
 
-        {/* ── Latest Reviews Section ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Reviews</Text>
-          <TouchableOpacity>
-            <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {courierReviews.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalListContent}
-          >
-            {courierReviews.map((review: any) => {
-              const reviewDate = new Date(review.created_at);
-              const now = new Date();
-              const diffMs = now.getTime() - reviewDate.getTime();
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
-              const customerName = review.customer?.first_name || 'Customer';
-              return (
-                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
-                  <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
-                    {review.review_text}
-                  </Text>
-                  <View style={{ marginVertical: 8 }}>
-                    <StarRating rating={review.rating} size={24} />
-                  </View>
-                  <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
-                    {timeAgo} by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>{customerName}</Text>
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>No reviews yet. Reviews from customers will appear here.</Text>
-          </View>
-        )}
-
-        {/* ── Recent Points Section ── */}
         {recentPoints.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
@@ -455,6 +412,50 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
             </ScrollView>
           </>
         )}
+
+        {/* ── Latest Reviews Section ── */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Reviews</Text>
+          <TouchableOpacity>
+            <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View All</Text>
+          </TouchableOpacity>
+        </View>
+
+        {courierReviews.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalListContent}
+          >
+            {courierReviews.map((review: any) => {
+              const reviewDate = new Date(review.created_at);
+              const now = new Date();
+              const diffMs = now.getTime() - reviewDate.getTime();
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
+              const customerName = review.customer?.first_name || 'Customer';
+              return (
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
+                  <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
+                    {review.review_text}
+                  </Text>
+                  <View style={{ marginVertical: 8 }}>
+                    <StarRating rating={review.rating} size={24} />
+                  </View>
+                  <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
+                    {timeAgo} by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>{customerName}</Text>
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+            <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>No reviews yet. Reviews from customers will appear here.</Text>
+          </View>
+        )}
+
+        {/* ── Recent Points Section ── */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
