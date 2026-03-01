@@ -281,6 +281,8 @@ const styles = StyleSheet.create({
     width: 100,
     height: '100%',
     minHeight: 90,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   cardContent: {
     flex: 1,
