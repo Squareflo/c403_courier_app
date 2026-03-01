@@ -366,7 +366,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
               const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
               const customerName = review.customer?.first_name || 'Customer';
               return (
-                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 40 } : {}) }]}>
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
                   <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
                     {review.review_text}
                   </Text>
@@ -400,7 +400,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
               {recentPoints.map((item) => {
                 const place = getNestedPlaceInfo(item);
                 return (
-                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card }]}>
+                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card, ...(recentPoints.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
                     {place.image ? (
                       <Image source={{ uri: place.image }} style={styles.recentCardImage} />
                     ) : (
@@ -434,7 +434,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.deliveryCard, { backgroundColor: colors.card }]}
+                    style={[styles.deliveryCard, { backgroundColor: colors.card, ...(recentDeliveries.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}
                     onPress={() => handleDeliveryPress(item.id)}
                     activeOpacity={0.7}
                   >
