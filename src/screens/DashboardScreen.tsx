@@ -366,7 +366,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
               const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
               const customerName = review.customer?.first_name || 'Customer';
               return (
-                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card }]}>
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 40 } : {}) }]}>
                   <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
                     {review.review_text}
                   </Text>
