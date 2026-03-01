@@ -723,11 +723,13 @@ const styles = StyleSheet.create({
   },
   statsScrollContent: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 10,
   },
   statCard: {
     minWidth: 100,
     paddingVertical: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     paddingHorizontal: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -764,6 +766,7 @@ const styles = StyleSheet.create({
   // Completed deliveries slider
   completedScrollContent: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 10,
   },
   completedCard: {

@@ -167,7 +167,7 @@ export function BottomNav({ activeTab, onTabPress, hiddenTabs = [] }: BottomNavP
         presentationStyle="pageSheet"
         onRequestClose={() => setShowMoreDrawer(false)}
       >
-        <View style={[styles.drawerContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.drawerContainer, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
           {/* Header */}
           <View
             style={[
@@ -283,6 +283,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   drawerItemIcon: {
     width: 40,

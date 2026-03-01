@@ -122,6 +122,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
   // Recent deliveries with place info
   const [recentDeliveries, setRecentDeliveries] = useState<any[]>([]);
   const [recentPoints, setRecentPoints] = useState<any[]>([]);
+  const [courierReviews, setCourierReviews] = useState<any[]>([]);
 
   // Profile data
   const profileImage = courier?.profile_picture_url || null;
@@ -134,9 +135,11 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
     ? communityRaw.split(',').slice(0, 2).map(s => s.trim()).join(', ')
     : communityRaw;
 
-  // Placeholder ratings (no courier_reviews table yet)
-  const courierRating = 0;
-  const courierReviewCount = 0;
+  // Computed from real courier_review data
+  const courierReviewCount = courierReviews.length;
+  const courierRating = courierReviewCount > 0
+    ? courierReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / courierReviewCount
+    : 0;
 
   // ── Data Loading ────────────────────────────────────────────────────────
 
@@ -165,6 +168,15 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
         .order('created_at', { ascending: false })
         .limit(10);
       setRecentPoints(points || []);
+
+      // Load courier reviews
+      const { data: reviews } = await supabase
+        .from('courier_review')
+        .select('id, rating, review_text, created_at, customer:customer_id(first_name)')
+        .eq('courier_id', courier.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setCourierReviews(reviews || []);
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     }
@@ -340,26 +352,39 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalListContent}
-        >
-          {/* Placeholder review cards — will populate when courier_reviews table exists */}
-          {[1, 2, 3].map((i) => (
-            <View key={i} style={[styles.reviewCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
-                Vivamus lacinia pretium dolor sit amet male...
-              </Text>
-              <View style={{ marginVertical: 8 }}>
-                <StarRating rating={4} size={24} />
-              </View>
-              <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
-                3 Days Ago by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>Amanda</Text>
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
+        {courierReviews.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalListContent}
+          >
+            {courierReviews.map((review: any) => {
+              const reviewDate = new Date(review.created_at);
+              const now = new Date();
+              const diffMs = now.getTime() - reviewDate.getTime();
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
+              const customerName = review.customer?.first_name || 'Customer';
+              return (
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
+                    {review.review_text}
+                  </Text>
+                  <View style={{ marginVertical: 8 }}>
+                    <StarRating rating={review.rating} size={24} />
+                  </View>
+                  <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
+                    {timeAgo} by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>{customerName}</Text>
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+            <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>No reviews yet. Reviews from customers will appear here.</Text>
+          </View>
+        )}
 
         {/* ── Recent Points Section ── */}
         {recentPoints.length > 0 && (
