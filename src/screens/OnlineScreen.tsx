@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Moon, Sun, User, ZapOff } from 'lucide-react-native';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
@@ -32,6 +33,9 @@ import { OfferCard } from '../components/ui/OfferCard';
 import { OpenOffersSection } from '../components/ui/OpenOffersSection';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Open offer notification sound
+const OPEN_OFFER_SOUND_URL = 'https://res.cloudinary.com/chowlocal/video/upload/v1772480173/624598__eqylizer__high-pitched-two-note-notification_nlia3c.mp3';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -142,6 +146,66 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
   // Location tracking ref
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sound ref for open offer notification
+  const openOfferSoundRef = useRef<Audio.Sound | null>(null);
+
+  // ── Play open offer notification sound (once) ───────────────────────────
+
+  const playOpenOfferSound = useCallback(async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Unload any previous sound
+      if (openOfferSoundRef.current) {
+        try {
+          await openOfferSoundRef.current.stopAsync();
+          await openOfferSoundRef.current.unloadAsync();
+        } catch {}
+        openOfferSoundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: OPEN_OFFER_SOUND_URL },
+        { shouldPlay: true, volume: 1.0, isLooping: false },
+      );
+
+      openOfferSoundRef.current = sound;
+
+      // Auto-cleanup after playback finishes
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          if (openOfferSoundRef.current === sound) {
+            openOfferSoundRef.current = null;
+          }
+        }
+      });
+
+      console.log('[OnlineScreen] ✅ Open offer notification sound played');
+    } catch (err) {
+      console.error('[OnlineScreen] ❌ Could not play open offer sound:', err);
+    }
+  }, []);
+
+  // Cleanup sound on unmount
+  useEffect(() => {
+    return () => {
+      if (openOfferSoundRef.current) {
+        openOfferSoundRef.current.stopAsync().catch(() => {});
+        openOfferSoundRef.current.unloadAsync().catch(() => {});
+        openOfferSoundRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Load offers via RPC ─────────────────────────────────────────────────
 
@@ -346,6 +410,10 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
           if (payload.eventType === 'INSERT' && payload.new.status === 'pending') {
             console.log('[OnlineScreen] New offer detected!');
+            // Play notification sound for new open offers
+            if (payload.new.type === 'open') {
+              playOpenOfferSound();
+            }
             loadOffers();
           } else if (payload.eventType === 'UPDATE' && payload.new.status !== 'pending') {
             console.log('[OnlineScreen] Offer status changed, reloading');
@@ -364,7 +432,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       console.log('[OnlineScreen] Cleaning up Realtime subscription');
       subscription.unsubscribe();
     };
-  }, [courier?.id, loadOffers, loadAcceptedDeliveries]);
+  }, [courier?.id, loadOffers, loadAcceptedDeliveries, playOpenOfferSound]);
 
   // ── Pull to refresh ─────────────────────────────────────────────────────
 

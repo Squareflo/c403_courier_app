@@ -20,6 +20,7 @@ import {
   User,
   ArrowDownLeft,
   ArrowUpRight,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';

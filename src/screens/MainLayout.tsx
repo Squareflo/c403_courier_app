@@ -18,12 +18,14 @@ import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
 import { WalletScreen } from './WalletScreen';
+import { PointsScreen } from './PointsScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { MessageDetailScreen } from './MessageDetailScreen';
 import { ChatScreen } from './ChatScreen';
 import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
+import { ReviewsScreen } from './ReviewsScreen';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 
@@ -563,6 +565,8 @@ export function MainLayout() {
         return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} onBack={() => setActiveTab('dashboard')} />;
       case 'wallet':
         return <WalletScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'points':
+        return <PointsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'messages':
         return (
           <MessagesScreen
@@ -574,7 +578,7 @@ export function MainLayout() {
           />
         );
       case 'reviews':
-        return <PlaceholderScreen title="Reviews" />;
+        return <ReviewsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'referrals':
         return <PlaceholderScreen title="Referrals" />;
       case 'my-account':

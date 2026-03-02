@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {
   Car,
+  Coins,
   LayoutDashboard,
   Menu,
   MessageSquare,
@@ -34,6 +35,7 @@ export type TabId =
   | 'messages'
   | 'reviews'
   | 'referrals'
+  | 'points'
   | 'my-account';
 
 interface TabDef {
@@ -72,6 +74,11 @@ const ALL_TABS: TabDef[] = [
     id: 'referrals',
     label: 'Referrals',
     icon: (color, size) => <Users size={size} color={color} />,
+  },
+  {
+    id: 'points',
+    label: 'Points',
+    icon: (color, size) => <Coins size={size} color={color} />,
   },
   {
     id: 'my-account',

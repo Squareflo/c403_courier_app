@@ -181,9 +181,10 @@ export async function getCourierTodayStats(courierId: string) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
+  // Fetch delivery stats (earnings, distance, count)
   const { data, error } = await supabase
     .from('delivery_request')
-    .select('id, courier_earnings, delivery_distance_km, delivery_distance_miles, points_earned')
+    .select('id, courier_earnings, delivery_distance_km, delivery_distance_miles')
     .eq('courier_id', courierId)
     .eq('status', 'delivered')
     .gte('delivered_at', startOfDay.toISOString());
@@ -193,10 +194,21 @@ export async function getCourierTodayStats(courierId: string) {
     throw error;
   }
 
+  // Fetch net points from courier_points_ledger for today
+  const { data: ledgerData, error: ledgerError } = await supabase
+    .from('courier_points_ledger')
+    .select('points')
+    .eq('courier_id', courierId)
+    .gte('entry_timestamp', startOfDay.toISOString());
+
+  if (ledgerError) {
+    console.error('[API] getCourierTodayStats ledger error:', ledgerError);
+  }
+
   const deliveries = data || [];
   const totalDeliveries = deliveries.length;
   const totalEarned = deliveries.reduce((sum, d) => sum + (d.courier_earnings || 0), 0);
-  const totalPoints = deliveries.reduce((sum, d) => sum + (d.points_earned || 0), 0);
+  const totalPoints = (ledgerData || []).reduce((sum: number, r: any) => sum + (r.points || 0), 0);
   const totalDistanceKm = deliveries.reduce((sum, d) => sum + (d.delivery_distance_km || 0), 0);
   const totalDistanceMiles = deliveries.reduce((sum, d) => sum + (d.delivery_distance_miles || 0), 0);
 
@@ -217,7 +229,7 @@ export async function getCourierTodayStats(courierId: string) {
 export async function getCourierPeriodStats(courierId: string, sinceDate?: string) {
   let query = supabase
     .from('delivery_request')
-    .select('id, courier_earnings, delivery_distance_km, delivery_distance_miles, points_earned')
+    .select('id, courier_earnings, delivery_distance_km, delivery_distance_miles')
     .eq('courier_id', courierId)
     .eq('status', 'delivered');
 
@@ -232,10 +244,26 @@ export async function getCourierPeriodStats(courierId: string, sinceDate?: strin
     throw error;
   }
 
+  // Fetch net points from courier_points_ledger for the same period
+  let ledgerQuery = supabase
+    .from('courier_points_ledger')
+    .select('points')
+    .eq('courier_id', courierId);
+
+  if (sinceDate) {
+    ledgerQuery = ledgerQuery.gte('entry_timestamp', sinceDate);
+  }
+
+  const { data: ledgerData, error: ledgerError } = await ledgerQuery;
+
+  if (ledgerError) {
+    console.error('[API] getCourierPeriodStats ledger error:', ledgerError);
+  }
+
   const deliveries = data || [];
   const total = deliveries.length;
   const earned = deliveries.reduce((sum, d) => sum + (d.courier_earnings || 0), 0);
-  const points = deliveries.reduce((sum, d) => sum + (d.points_earned || 0), 0);
+  const points = (ledgerData || []).reduce((sum: number, r: any) => sum + (r.points || 0), 0);
   const totalKm = deliveries.reduce((sum, d) => sum + (d.delivery_distance_km || 0), 0);
 
   return {
