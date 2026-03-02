@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { DARK_MAP_STYLE, LIGHT_MAP_STYLE } from '../styles/mapStyles';
 import { formatDistance } from '../utils/distance';
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import { Audio } from 'expo-av';
 import { Phone, Star, X } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { fontFamily } from '../constants/typography';
@@ -51,7 +51,7 @@ const DEFAULT_CUSTOMER_AVATAR_LIGHT =
 // —— "You Got Paid" sound ————————————————————————————————————————
 
 const YOU_GOT_PAID_SOUND_URL =
-  'https://res.cloudinary.com/chowlocal/video/upload/v1772493957/435685__stevehernandez166__you-just-got-money-notif_qk5kk1.mp4';
+  'https://res.cloudinary.com/chowlocal/video/upload/v1772495192/253595__thoribass__notification1-freesound_fqn6ab.wav';
 
 // —— Types ——————————————————————————————————————————————————————————
 
@@ -320,16 +320,6 @@ export function ActiveDeliveryScreen({
 
   const playYouGotPaidSound = useCallback(async () => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
-
       const { sound } = await Audio.Sound.createAsync(
         { uri: YOU_GOT_PAID_SOUND_URL },
         { shouldPlay: true, volume: 1.0 },

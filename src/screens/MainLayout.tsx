@@ -90,6 +90,20 @@ export function MainLayout() {
   // Polling ref for is_online status
   const onlineStatusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Set audio mode ONCE on mount — MixWithOthers so we never duck other apps ──
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      shouldDuckAndroid: false,
+      playThroughEarpieceAndroid: false,
+    }).catch((err) => console.warn('[MainLayout] Audio mode setup error:', err));
+  }, []);
+
   // ── Poll is_online status from DB ───────────────────────────────────────
 
   useEffect(() => {
@@ -151,17 +165,7 @@ export function MainLayout() {
 
   const playExclusiveOfferSound = useCallback(async () => {
     try {
-      console.log('[MainLayout] Setting audio mode...');
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
+      console.log('[MainLayout] Playing exclusive offer sound...');
 
       // Unload any previous sound
       if (soundRef.current) {
