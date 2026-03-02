@@ -582,9 +582,9 @@ export function OpenOfferScreen({
           console.error('[OpenOfferScreen] STEP 4: Penalty error:', penaltyError);
         }
 
-        // Extract penalty points from response
-        if (penaltyResponse?.penalty_calculation?.final_penalty_points) {
-          penaltyPoints = penaltyResponse.penalty_calculation.final_penalty_points;
+        // Extract penalty points from response (flat value from territory_points.reject_offer_penalty_points)
+        if (penaltyResponse?.penalty_points) {
+          penaltyPoints = penaltyResponse.penalty_points;
           console.log('[OpenOfferScreen] STEP 4: Extracted penalty points:', penaltyPoints);
         } else if (penaltyResponse?.penalty_assessed === false) {
           console.log('[OpenOfferScreen] STEP 4: No penalty assessed:', penaltyResponse?.message);

@@ -157,9 +157,9 @@ export function MainLayout() {
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
-        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
         interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-        shouldDuckAndroid: true,
+        shouldDuckAndroid: false,
         playThroughEarpieceAndroid: false,
       });
 
