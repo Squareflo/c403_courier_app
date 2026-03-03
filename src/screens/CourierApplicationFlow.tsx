@@ -39,6 +39,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778/background_ejkzfw.png';
 const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 const BUTTON_COLOR = '#ffd21f';
+const CHOWLOCAL_LOGO = 'https://res.cloudinary.com/chowlocal/image/upload/v1758731159/logo_dmw37v.png';
 
 // Province/state abbreviation to full name
 const STATE_NAMES: Record<string, string> = {
@@ -59,7 +60,7 @@ const STATE_NAMES: Record<string, string> = {
   DC: 'District of Columbia',
 };
 
-type Screen = 'splash' | 'form' | 'success';
+type Screen = 'splash' | 'form' | 'success' | 'pending-dashboard';
 
 interface CityPrediction {
   place_id: string;
@@ -82,6 +83,36 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   const insets = useSafeAreaInsets();
 
   const [screen, setScreen] = useState<Screen>('splash');
+
+  // Application data for pending dashboard
+  const [applicationData, setApplicationData] = useState<any>(null);
+
+  // Check for existing application on mount
+  useEffect(() => {
+    checkExistingApplication();
+  }, []);
+
+  const checkExistingApplication = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('courier_applications')
+        .select('*')
+        .eq('customer_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        setApplicationData(data);
+        setScreen('pending-dashboard');
+      }
+    } catch (err) {
+      console.log('Check existing application error:', err);
+    }
+  };
 
   // Form fields
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(courier?.profile_picture_url || null);
@@ -350,6 +381,19 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
         return;
       }
 
+      // Fetch the newly created application
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: appData } = await supabase
+          .from('courier_applications')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (appData) setApplicationData(appData);
+      }
+
       setScreen('success');
     } catch (err: any) {
       setError(err.message || 'Something went wrong.');
@@ -420,7 +464,60 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
             <Text style={[styles.successDesc, { color: textSecColor }]}>
               Thank you for applying to be a courier. Your application has been received and will be reviewed by a member of our team. We'll be in touch soon!
             </Text>
-            <Button title="Done" onPress={onBack} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
+            <Button title="Exit" onPress={() => setScreen('pending-dashboard')} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Render: Pending Dashboard ───────────────────────────────────
+
+  if (screen === 'pending-dashboard') {
+    const app = applicationData;
+    const statusLabel = app?.status === 'approved' ? 'APPROVED' : app?.status === 'rejected' ? 'APPLICATION REJECTED' : 'APPLICATION PENDING';
+    const statusColor = app?.status === 'approved' ? '#22C55E' : app?.status === 'rejected' ? '#EF4444' : '#F97316';
+    const displayName = app ? `${app.first_name} ${app.last_name}` : `${courier?.first_name || ''} ${courier?.last_name || ''}`;
+    const displayCommunity = app?.community || '';
+    const displayPic = app?.profile_picture_url || courier?.profile_picture_url || null;
+    const displayInitials = `${(app?.first_name || courier?.first_name || '')[0] || ''}${(app?.last_name || courier?.last_name || '')[0] || ''}`.toUpperCase();
+
+    const handleSignOut = async () => {
+      await supabase.auth.signOut();
+      onBack();
+    };
+
+    return (
+      <View style={[styles.pendingContainer, { backgroundColor: '#000' }]}>
+        <SafeAreaView style={{ flex: 1 }}>
+          {/* Header */}
+          <View style={styles.pendingHeader}>
+            <Image source={{ uri: CHOWLOCAL_LOGO }} style={styles.pendingLogo} resizeMode="contain" />
+            <Text style={styles.pendingHeaderTitle}>Dashboard</Text>
+            <TouchableOpacity onPress={handleSignOut} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="log-out-outline" size={24} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={{ height: 1, backgroundColor: '#333' }} />
+
+          {/* Application Card */}
+          <View style={styles.pendingCard}>
+            {displayPic ? (
+              <Image source={{ uri: displayPic }} style={styles.pendingAvatar} />
+            ) : (
+              <View style={[styles.pendingAvatar, styles.pendingAvatarPlaceholder]}>
+                <Text style={styles.pendingAvatarInitials}>{displayInitials}</Text>
+              </View>
+            )}
+            <View style={styles.pendingInfo}>
+              <Text style={styles.pendingName}>{displayName}</Text>
+              <Text style={styles.pendingCommunity}>{displayCommunity}</Text>
+              <View style={[styles.pendingBadge, { backgroundColor: statusColor }]}>
+                <Text style={styles.pendingBadgeText}>{statusLabel}</Text>
+              </View>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -589,4 +686,19 @@ const styles = StyleSheet.create({
 
   // Error
   errorText: { color: '#FF3B30', fontFamily: fontFamily.regular, fontSize: 14, textAlign: 'center', marginBottom: 12 },
+
+  // Pending Dashboard
+  pendingContainer: { flex: 1 },
+  pendingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
+  pendingLogo: { width: 44, height: 44, borderRadius: 8 },
+  pendingHeaderTitle: { fontFamily: fontFamily.bold, fontSize: 20, color: '#FFF' },
+  pendingCard: { flexDirection: 'row', alignItems: 'center', margin: 20, backgroundColor: '#1A1A1A', borderRadius: 14, padding: 0, overflow: 'hidden' },
+  pendingAvatar: { width: 110, height: 110 },
+  pendingAvatarPlaceholder: { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
+  pendingAvatarInitials: { fontFamily: fontFamily.bold, fontSize: 32, color: '#888' },
+  pendingInfo: { flex: 1, paddingHorizontal: 16, paddingVertical: 14 },
+  pendingName: { fontFamily: fontFamily.bold, fontSize: 18, color: '#FFF', marginBottom: 4 },
+  pendingCommunity: { fontFamily: fontFamily.regular, fontSize: 14, color: '#AAA', marginBottom: 10 },
+  pendingBadge: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  pendingBadgeText: { fontFamily: fontFamily.bold, fontSize: 11, color: '#FFF', letterSpacing: 1, textTransform: 'uppercase' },
 });
