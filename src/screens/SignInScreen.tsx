@@ -32,6 +32,7 @@ import {
 } from '../api/functions';
 import { FlatList, Modal } from 'react-native';
 
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password' | 'enter-reset-code' | 'reset-success';
@@ -39,6 +40,7 @@ type TabType = 'signin' | 'signup';
 
 interface SignInScreenProps {
   onSignInSuccess: () => void;
+  onShowApplication?: () => void;
 }
 
 // ── Country data (for sign-up phone) ─────────────────────────────────────────
@@ -71,10 +73,11 @@ const COUNTRIES = [
 ];
 
 const ALLOWED_COURIER_ROLES = ['courier'] as const;
+const APPLICANT_ROLES = ['courier-applicant'] as const;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
+export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScreenProps) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { setCourier } = useAuth();
 
@@ -205,23 +208,27 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
         .single();
 
       if (customerError || !customerData) {
-        await supabase.auth.signOut();
         setErrors({ general: 'Account not found. Please contact support.' });
         return;
       }
 
       if (!customerData.is_verified) {
-        await supabase.auth.signOut();
-        setErrors({ general: 'Your account is pending verification. Please check your email.' });
+        // Don't sign out — send them to verify email
+        setVerifyEmail_(email.toLowerCase().trim());
+        setVerifyUserId(data.user.id);
+        setVerifyPassword(password);
+        setCountdown(45);
+        setCanResend(false);
+        setVerificationCode('');
+        goToScreen('verify-email');
         return;
       }
 
       const userRoles = Array.isArray(customerData.roles) ? (customerData.roles as string[]) : [];
-      const hasAllowedRole = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
+      const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
-      if (!hasAllowedRole) {
-        await supabase.auth.signOut();
-        setErrors({ general: 'This account does not have courier access.' });
+      if (!isCourier) {
+        onShowApplication?.();
         return;
       }
 
@@ -354,11 +361,10 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
       }
 
       const userRoles = Array.isArray(customerData.roles) ? (customerData.roles as string[]) : [];
-      const hasAllowedRole = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
+      const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
-      if (!hasAllowedRole) {
-        await supabase.auth.signOut();
-        setError('This account does not have courier access. Please contact support.');
+      if (!isCourier) {
+        onShowApplication?.();
         return;
       }
 
@@ -697,8 +703,8 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
           <>
             {error ? <View style={styles.errorBox}><Text style={styles.errorBoxText}>{error}</Text></View> : null}
 
-            <FormField label="New Password" value={newPassword} onChangeText={t => { setNewPassword(t); if (error) setError(''); }} placeholder="Enter new password" secureTextEntry />
-            <FormField label="Confirm New Password" value={confirmPassword} onChangeText={t => { setConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry />
+            <FormField key="reset-new-pw" label="New Password" value={newPassword} onChangeText={t => { setNewPassword(t); if (error) setError(''); }} placeholder="Enter new password" secureTextEntry style={{ letterSpacing: 0 }} />
+            <FormField key="reset-confirm-pw" label="Confirm New Password" value={confirmPassword} onChangeText={t => { setConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry style={{ letterSpacing: 0 }} />
 
             <Button title={isLoading ? 'Setting Password...' : 'Set New Password'} onPress={handleSetNewPassword} variant="dark" size="large" style={{ marginTop: 8 }} disabled={isLoading || !newPassword || !confirmPassword} />
           </>

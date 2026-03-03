@@ -22,8 +22,6 @@ function ThemedStatusBar() {
   );
 }
 
-const ALLOWED_COURIER_ROLES = ['courier'] as const;
-
 type AppScreen = 'loading' | 'sign-in' | 'main' | 'application';
 
 export default function App() {
@@ -58,30 +56,21 @@ export default function App() {
         }
 
         const userRoles = Array.isArray(data.roles) ? (data.roles as string[]) : [];
-        const hasAllowedRole = userRoles.some((role) =>
-          ALLOWED_COURIER_ROLES.includes(role as (typeof ALLOWED_COURIER_ROLES)[number])
-        );
+        const isCourier = userRoles.includes('courier');
+        const isApplicant = userRoles.includes('courier-applicant');
 
-        if (hasAllowedRole) {
+        if (isCourier) {
           setAppScreen('main');
           return;
         }
 
-        // Not a courier — check if they have a pending application
-        const { data: appData } = await supabase
-          .from('courier_applications')
-          .select('id')
-          .eq('customer_id', session.user.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (appData) {
-          // Has an application — show the application flow (which will detect it and show pending dashboard)
+        if (isApplicant) {
           setAppScreen('application');
-        } else {
-          // No application — show application flow (which will show splash → form)
-          setAppScreen('application');
+          return;
         }
+
+        // No courier role and no applicant role — show sign-in
+        setAppScreen('sign-in');
       } catch (err) {
         console.error('Session restore error:', err);
         setAppScreen('sign-in');
