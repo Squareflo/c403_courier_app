@@ -523,11 +523,8 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.tapText, { color: textSecColor }]}>
-                  {displayImage ? (showDeleteButton ? 'Tap X to remove photo' : 'Tap to change photo') : 'Tap to add photo'}
-                </Text>
                 {selectedImage && (
-                  <Text style={[styles.tapText, { color: textSecColor, marginTop: 2 }]}>
+                  <Text style={[styles.tapText, { color: textSecColor, marginTop: 8 }]}>
                     New photo selected. Tap "Update" to save.
                   </Text>
                 )}
@@ -572,9 +569,8 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
               <FormField label="New Password" value={newPassword} onChangeText={setNewPassword} placeholder="New Password" secureTextEntry />
               <FormField label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm Password" secureTextEntry />
 
-              {/* Update Button or Sign Out */}
-              <View style={[styles.divider, { backgroundColor: isDark ? '#333' : '#DDD' }]} />
-              {hasChanges ? (
+              {/* Update Button - only when changes */}
+              {hasChanges && (
                 <TouchableOpacity
                   style={[
                     styles.inlineUpdateButton,
@@ -591,11 +587,12 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
                     {isSaving ? (isUploading ? 'Uploading...' : 'Updating...') : 'Update'}
                   </Text>
                 </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.7}>
-                  <Text style={styles.signOutText}>Sign Out</Text>
-                </TouchableOpacity>
               )}
+
+              {/* Sign Out - always visible */}
+              <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.7}>
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
             </>
           )}
         </ScrollView>
