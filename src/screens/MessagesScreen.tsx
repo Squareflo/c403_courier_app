@@ -518,6 +518,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterTag: {
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
