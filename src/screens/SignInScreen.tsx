@@ -697,8 +697,8 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
           <>
             {error ? <View style={styles.errorBox}><Text style={styles.errorBoxText}>{error}</Text></View> : null}
 
-            <FormField label="New Password" value={newPassword} onChangeText={t => { setNewPassword(t); if (error) setError(''); }} placeholder="Enter new password" secureTextEntry />
-            <FormField label="Confirm New Password" value={confirmPassword} onChangeText={t => { setConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry />
+            <FormField key="reset-new-pw" label="New Password" value={newPassword} onChangeText={t => { setNewPassword(t); if (error) setError(''); }} placeholder="Enter new password" secureTextEntry style={{ letterSpacing: 0 }} />
+            <FormField key="reset-confirm-pw" label="Confirm New Password" value={confirmPassword} onChangeText={t => { setConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry style={{ letterSpacing: 0 }} />
 
             <Button title={isLoading ? 'Setting Password...' : 'Set New Password'} onPress={handleSetNewPassword} variant="dark" size="large" style={{ marginTop: 8 }} disabled={isLoading || !newPassword || !confirmPassword} />
           </>
