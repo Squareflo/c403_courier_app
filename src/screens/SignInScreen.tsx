@@ -222,7 +222,6 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
       const hasAllowedRole = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
       if (!hasAllowedRole) {
-        await supabase.auth.signOut();
         setShowApplication(true);
         return;
       }
@@ -359,7 +358,6 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
       const hasAllowedRole = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
       if (!hasAllowedRole) {
-        await supabase.auth.signOut();
         setShowApplication(true);
         return;
       }

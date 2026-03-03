@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -92,6 +93,27 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   // Shared
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const isFormComplete = useMemo(() => {
+    return (
+      !!selectedCity &&
+      hasDeliveryExperience !== null &&
+      hasDriversLicense !== null &&
+      hasReliableVehicle !== null &&
+      hasCriminalRecord !== null &&
+      willingToCriminalCheck !== null &&
+      legallyAllowedToWork !== null &&
+      !!howDidYouHear.trim()
+    );
+  }, [selectedCity, hasDeliveryExperience, hasDriversLicense, hasReliableVehicle, hasCriminalRecord, willingToCriminalCheck, legallyAllowedToWork, howDidYouHear]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setError('');
+    await autoDetectCity();
+    setRefreshing(false);
+  }, []);
 
   // ── Auto-detect location ──────────────────────────────────────────
 
@@ -132,13 +154,28 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const url = `${SUPABASE_URL}/functions/v1/google-places-autocomplete?input=${encodeURIComponent(query)}&components=country:ca|country:us&types=(cities)`;
+      console.log('[CourierApp] City search:', query, 'hasToken:', !!session?.access_token);
       const response = await fetch(url, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${session?.access_token || ''}`, 'Content-Type': 'application/json' },
+        headers: {
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          'Content-Type': 'application/json',
+        },
       });
       const data = await response.json();
-      if (data.predictions) { setPredictions(data.predictions); setShowPredictions(true); }
-    } catch { } finally { setIsSearchingCity(false); }
+      console.log('[CourierApp] City search response:', JSON.stringify(data).substring(0, 200));
+      if (data.predictions && data.predictions.length > 0) {
+        setPredictions(data.predictions);
+        setShowPredictions(true);
+      } else {
+        setPredictions([]);
+        setShowPredictions(false);
+      }
+    } catch (err) {
+      console.error('[CourierApp] City search error:', err);
+    } finally {
+      setIsSearchingCity(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -359,7 +396,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
             <View style={{ width: 24 }} />
           </View>
 
-          <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={textSecColor} />}>
             {/* Profile Picture */}
             <View style={styles.avatarSection}>
               <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage} activeOpacity={0.8}>
@@ -431,15 +468,17 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
             {/* Error */}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            {/* Submit */}
-            <Button
-              title={isSubmitting ? (isUploading ? 'Uploading Photo...' : 'Submitting...') : 'Submit Application'}
-              onPress={handleSubmit}
-              variant="dark"
-              size="large"
-              disabled={isSubmitting}
-              style={{ marginTop: 8, marginBottom: 40 }}
-            />
+            {/* Submit - only when all fields complete */}
+            {isFormComplete && (
+              <Button
+                title={isSubmitting ? (isUploading ? 'Uploading Photo...' : 'Submitting...') : 'Submit Application'}
+                onPress={handleSubmit}
+                variant="dark"
+                size="large"
+                disabled={isSubmitting}
+                style={{ marginTop: 8, marginBottom: 40 }}
+              />
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
