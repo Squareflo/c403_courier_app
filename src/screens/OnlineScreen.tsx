@@ -649,7 +649,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
               {completedDeliveries.map((delivery) => (
                 <TouchableOpacity
                   key={delivery.id}
-                  style={[styles.completedCard, { backgroundColor: cardBg, minWidth: SCREEN_WIDTH < 400 ? SCREEN_WIDTH / 1.3 : SCREEN_WIDTH / 3 }]}
+                  style={[styles.completedCard, { backgroundColor: cardBg, ...(completedDeliveries.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : { minWidth: SCREEN_WIDTH < 400 ? SCREEN_WIDTH / 1.3 : SCREEN_WIDTH / 3 }) }]}
                   onPress={() => handleAcceptedPress(delivery.id)}
                   activeOpacity={0.7}
                 >
