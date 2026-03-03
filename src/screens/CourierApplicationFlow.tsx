@@ -157,7 +157,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
         if (cityStr) {
           setCityInput(cityStr);
           setSelectedCity(cityStr);
-          if (geo.region) setSelectedState(geo.region);
+          if (geo.region) setSelectedState(STATE_NAMES[geo.region] || geo.region);
           if (geo.country) setSelectedCountry(geo.country);
         }
       }
