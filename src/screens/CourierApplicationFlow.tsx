@@ -35,6 +35,7 @@ import { fontFamily } from '../constants/typography';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = 'https://rddssfhltufrwlsmbtps.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkZHNzZmhsdHVmcndsc21idHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NjExNTAsImV4cCI6MjA3NjAzNzE1MH0.vNkjdUoYthWoaphE_sp1TsNx7U2A84W515iXVkuU01k';
 const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778/background_ejkzfw.png';
 const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 const BUTTON_COLOR = '#ffd21f';
@@ -172,17 +173,22 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     setIsSearchingCity(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
       const url = `${SUPABASE_URL}/functions/v1/google-places-autocomplete?input=${encodeURIComponent(query)}&components=country:ca|country:us&types=(cities)`;
-      console.log('[CourierApp] City search:', query, 'hasToken:', !!session?.access_token);
+      console.log('[CourierApp] City search:', query);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
       });
+      
       const data = await response.json();
-      console.log('[CourierApp] City search response:', JSON.stringify(data).substring(0, 200));
+      console.log('[CourierApp] City results:', data.predictions?.length || 0, data.status || data.error);
+      
       if (data.predictions && data.predictions.length > 0) {
         setPredictions(data.predictions);
         setShowPredictions(true);
