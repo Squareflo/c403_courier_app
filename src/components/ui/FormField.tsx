@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1,
     borderColor: '#e5e5e5',
+    letterSpacing: 0,
   },
   passwordInput: {
     paddingRight: 50,
