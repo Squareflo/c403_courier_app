@@ -128,10 +128,23 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
   const [recentPoints, setRecentPoints] = useState<any[]>([]);
   const [courierReviews, setCourierReviews] = useState<any[]>([]);
 
-  // Profile data — use applicationData if in application mode
-  const profileImage = isApplicationMode
-    ? (applicationData.profile_picture_url || courier?.profile_picture_url || null)
-    : (courier?.profile_picture_url || null);
+  const [freshProfilePic, setFreshProfilePic] = useState<string | null>(null);
+
+  // In application mode, fetch fresh profile picture from DB since auth context may be stale
+  useEffect(() => {
+    if (!isApplicationMode || !courier?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('customer')
+        .select('profile_picture_url')
+        .eq('id', courier.id)
+        .single();
+      if (data?.profile_picture_url) setFreshProfilePic(data.profile_picture_url);
+    })();
+  }, [isApplicationMode, courier?.id]);
+
+  // Profile data — use applicationData for name/community if in application mode
+  const profileImage = (isApplicationMode ? freshProfilePic : null) || courier?.profile_picture_url || null;
   const firstName = isApplicationMode ? (applicationData.first_name || 'Courier') : (courier?.first_name || 'Courier');
   const lastName = isApplicationMode ? (applicationData.last_name || '') : (courier?.last_name || '');
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
