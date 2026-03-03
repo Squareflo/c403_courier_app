@@ -188,8 +188,8 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
       let localPhone = '';
 
       if (data.phone_number_only && data.dialing_code_only) {
-        dialCode = data.dialing_code_only;
-        localPhone = data.phone_number_only;
+        dialCode = data.phone_number_only;
+        localPhone = data.dialing_code_only;
       } else if (data.phone_number) {
         const spaceIdx = data.phone_number.indexOf(' ');
         if (spaceIdx > 0) {
@@ -472,7 +472,7 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
       >
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[styles.scrollContent, hasChanges && { paddingBottom: 120 }]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -572,30 +572,33 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
               <FormField label="New Password" value={newPassword} onChangeText={setNewPassword} placeholder="New Password" secureTextEntry />
               <FormField label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm Password" secureTextEntry />
 
-              {/* Sign Out */}
+              {/* Update Button or Sign Out */}
               <View style={[styles.divider, { backgroundColor: isDark ? '#333' : '#DDD' }]} />
-              <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.7}>
-                <Text style={styles.signOutText}>Sign Out</Text>
-              </TouchableOpacity>
+              {hasChanges ? (
+                <TouchableOpacity
+                  style={[
+                    styles.inlineUpdateButton,
+                    {
+                      backgroundColor: isDark ? '#FFF' : '#000',
+                      opacity: isSaving ? 0.6 : 1,
+                    },
+                  ]}
+                  onPress={handleSave}
+                  disabled={isSaving}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.inlineUpdateButtonText, { color: isDark ? '#000' : '#FFF' }]}>
+                    {isSaving ? (isUploading ? 'Uploading...' : 'Updating...') : 'Update'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.7}>
+                  <Text style={styles.signOutText}>Sign Out</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
         </ScrollView>
-
-        {/* Sticky Update Button */}
-        {hasChanges && !isLoading && (
-          <View style={[styles.footer, { backgroundColor: cardBg, borderTopColor: colors.border, paddingBottom: insets.bottom + 16 }]}>
-            <TouchableOpacity
-              style={[styles.updateButton, { opacity: isSaving ? 0.6 : 1 }]}
-              onPress={handleSave}
-              disabled={isSaving}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.updateButtonText}>
-                {isSaving ? (isUploading ? 'Uploading...' : 'Updating...') : 'Update'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </KeyboardAvoidingView>
 
       {/* Country Picker Modal */}
@@ -696,10 +699,9 @@ const styles = StyleSheet.create({
   signOutButton: { paddingVertical: 14, alignItems: 'center' },
   signOutText: { fontFamily: fontFamily.bold, fontSize: 16, color: PRIMARY_COLOR },
 
-  // Footer
-  footer: { paddingHorizontal: 16, paddingTop: 16, borderTopWidth: 1 },
-  updateButton: { backgroundColor: '#000', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  updateButtonText: { fontFamily: fontFamily.bold, fontSize: 16, color: '#FFF' },
+  // Inline Update Button
+  inlineUpdateButton: { borderRadius: 12, paddingVertical: 16, alignItems: 'center' as const, marginBottom: 8 },
+  inlineUpdateButtonText: { fontFamily: fontFamily.bold, fontSize: 16 },
 
   // Country Picker Modal
   modalContainer: { flex: 1 },
