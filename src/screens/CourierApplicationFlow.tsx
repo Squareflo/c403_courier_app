@@ -39,6 +39,25 @@ const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778
 const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 const BUTTON_COLOR = '#ffd21f';
 
+// Province/state abbreviation to full name
+const STATE_NAMES: Record<string, string> = {
+  AB: 'Alberta', BC: 'British Columbia', MB: 'Manitoba', NB: 'New Brunswick',
+  NL: 'Newfoundland and Labrador', NS: 'Nova Scotia', NT: 'Northwest Territories',
+  NU: 'Nunavut', ON: 'Ontario', PE: 'Prince Edward Island', QC: 'Quebec',
+  SK: 'Saskatchewan', YT: 'Yukon',
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  DC: 'District of Columbia',
+};
+
 type Screen = 'splash' | 'form' | 'success';
 
 interface CityPrediction {
@@ -195,8 +214,15 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
 
     // Parse state/country from description (e.g. "Regina, SK, Canada")
     const parts = desc.split(', ');
-    if (parts.length >= 3) { setSelectedState(parts[1]); setSelectedCountry(parts[2]); }
-    else if (parts.length === 2) { setSelectedState(parts[1]); setSelectedCountry(''); }
+    if (parts.length >= 3) {
+      const stateAbbr = parts[1].trim();
+      setSelectedState(STATE_NAMES[stateAbbr] || stateAbbr);
+      setSelectedCountry(parts[2]);
+    } else if (parts.length === 2) {
+      const stateAbbr = parts[1].trim();
+      setSelectedState(STATE_NAMES[stateAbbr] || stateAbbr);
+      setSelectedCountry('');
+    }
   };
 
   // ── Profile picture ───────────────────────────────────────────────
@@ -404,8 +430,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
                   <Image source={{ uri: displayImage }} style={styles.avatarImg} />
                 ) : (
                   <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#333' : '#DDD' }]}>
-                    <Text style={[styles.avatarInitials, { color: isDark ? '#aaa' : '#666' }]}>{initials}</Text>
-                    <View style={styles.cameraOverlay}><Camera size={20} color="#fff" /></View>
+                    <View style={styles.cameraOverlay}><Camera size={32} color="#fff" /></View>
                   </View>
                 )}
               </TouchableOpacity>
@@ -520,7 +545,7 @@ const styles = StyleSheet.create({
   avatarImg: { width: '100%', height: '100%' },
   avatarPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   avatarInitials: { fontFamily: fontFamily.bold, fontSize: 36 },
-  cameraOverlay: { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 },
+  cameraOverlay: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
   avatarHint: { fontFamily: fontFamily.regular, fontSize: 12, marginTop: 8 },
 
   // City search
