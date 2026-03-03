@@ -96,12 +96,16 @@ function StarRating({ rating, size = 16 }: { rating: number; size?: number }) {
 interface DashboardScreenProps {
   onWentOnline?: () => void;
   onDeliveryPress?: (deliveryId: string) => void;
+  /** If provided, shows a stripped-down "application pending" dashboard */
+  applicationData?: any;
 }
 
-export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScreenProps) {
+export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData }: DashboardScreenProps) {
   const { courier, signOut, refreshCourier } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const isApplicationMode = !!applicationData;
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>('last_30');
@@ -124,15 +128,17 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
   const [recentPoints, setRecentPoints] = useState<any[]>([]);
   const [courierReviews, setCourierReviews] = useState<any[]>([]);
 
-  // Profile data
-  const profileImage = courier?.profile_picture_url || null;
-  const firstName = courier?.first_name || 'Courier';
-  const lastName = courier?.last_name || '';
+  // Profile data — use applicationData if in application mode
+  const profileImage = isApplicationMode
+    ? (applicationData.profile_picture_url || courier?.profile_picture_url || null)
+    : (courier?.profile_picture_url || null);
+  const firstName = isApplicationMode ? (applicationData.first_name || 'Courier') : (courier?.first_name || 'Courier');
+  const lastName = isApplicationMode ? (applicationData.last_name || '') : (courier?.last_name || '');
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
   const distUnit = courier?.preferred_distance_unit;
-  const communityRaw = courier?.community || '';
+  const communityRaw = isApplicationMode ? (applicationData.community || '') : (courier?.community || '');
   const cityProvince = communityRaw.includes(',')
-    ? communityRaw.split(',').slice(0, 2).map(s => s.trim()).join(', ')
+    ? communityRaw.split(',').slice(0, 2).map((s: string) => s.trim()).join(', ')
     : communityRaw;
 
   // Computed from real courier_review data
@@ -141,10 +147,14 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
     ? courierReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / courierReviewCount
     : 0;
 
+  // Application status
+  const appStatusLabel = applicationData?.status === 'approved' ? 'APPROVED' : applicationData?.status === 'rejected' ? 'APPLICATION REJECTED' : 'APPLICATION PENDING';
+  const appStatusColor = applicationData?.status === 'approved' ? '#22C55E' : applicationData?.status === 'rejected' ? '#EF4444' : '#F97316';
+
   // ── Data Loading ────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
-    if (!courier?.id) return;
+    if (!courier?.id || isApplicationMode) return;
     try {
       const sinceDate = getSinceDate(selectedPeriod);
       const periodStats = await getCourierPeriodStats(courier.id, sinceDate);
@@ -180,7 +190,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     }
-  }, [courier?.id, selectedPeriod]);
+  }, [courier?.id, selectedPeriod, isApplicationMode]);
 
   useEffect(() => {
     loadData();
@@ -248,9 +258,11 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
           </View>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={toggleTheme} hitSlop={8} style={styles.headerButton}>
-            {isDark ? <Sun size={22} color={colors.text} /> : <Moon size={22} color={colors.text} />}
-          </TouchableOpacity>
+          {!isApplicationMode && (
+            <TouchableOpacity onPress={toggleTheme} hitSlop={8} style={styles.headerButton}>
+              {isDark ? <Sun size={22} color={colors.text} /> : <Moon size={22} color={colors.text} />}
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={signOut} hitSlop={8} style={styles.headerButton}>
             <LogOut size={22} color={colors.text} />
           </TouchableOpacity>
@@ -263,16 +275,18 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Period Selector (right-aligned) ── */}
-        <TouchableOpacity
-          style={styles.periodSelector}
-          onPress={() => setShowPeriodPicker(true)}
-          activeOpacity={0.7}
-          hitSlop={8}
-        >
-          <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{getPeriodLabel(selectedPeriod)}</Text>
-          <ChevronDown size={14} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {/* ── Period Selector (only in normal mode) ── */}
+        {!isApplicationMode && (
+          <TouchableOpacity
+            style={styles.periodSelector}
+            onPress={() => setShowPeriodPicker(true)}
+            activeOpacity={0.7}
+            hitSlop={8}
+          >
+            <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{getPeriodLabel(selectedPeriod)}</Text>
+            <ChevronDown size={14} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
 
         {/* ── Profile Card (RestaurantCard style — image touches left/top/bottom) ── */}
         <View style={[styles.profileCardOuter, { backgroundColor: colors.card }]}>
@@ -287,7 +301,11 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
             <View style={styles.profileInfo}>
               <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>{fullName}</Text>
               <Text style={[styles.profileCity, { color: colors.textSecondary }]} numberOfLines={1}>{cityProvince}</Text>
-              {courierReviewCount > 0 ? (
+              {isApplicationMode ? (
+                <View style={[styles.appBadge, { backgroundColor: appStatusColor }]}>
+                  <Text style={styles.appBadgeText}>{appStatusLabel}</Text>
+                </View>
+              ) : courierReviewCount > 0 ? (
                 <View style={styles.ratingRow}>
                   <Text style={[styles.ratingNumber, { color: '#FFD700' }]}>{courierRating.toFixed(1)}</Text>
                   <StarRating rating={courierRating} size={12} />
@@ -302,204 +320,212 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress }: DashboardScre
           </View>
         </View>
 
-        {/* ── Slide To Go Online ── */}
-        <View style={styles.slideContainer}>
-          <SlideToOnline onSlideComplete={handleSlideToOnline} />
-        </View>
+        {/* ── Application mode: stop here — no stats, no slide, no deliveries ── */}
+        {isApplicationMode && <View style={{ height: 40 }} />}
 
-        {/* ── Stats Row (horizontally scrollable) ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statsScrollContent}
-          style={styles.statsScroll}
-        >
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatLargeNumber(stats.points)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Points</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.deliveries}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Deliveries</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>${formatLargeNumber(Math.round(stats.earned))}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Earnings</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>${stats.avgPerDelivery.toFixed(0)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>${stats.earningsPerKm.toFixed(1)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getPerDistanceLabel(distUnit)}</Text>
-          </View>
-        </ScrollView>
-
-        {recentPoints.length > 0 && (
+        {/* ── Normal mode content below ── */}
+        {!isApplicationMode && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Points</Text>
+            {/* ── Slide To Go Online ── */}
+            <View style={styles.slideContainer}>
+              <SlideToOnline onSlideComplete={handleSlideToOnline} />
             </View>
+
+            {/* ── Stats Row (horizontally scrollable) ── */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalListContent}
+              contentContainerStyle={styles.statsScrollContent}
+              style={styles.statsScroll}
             >
-              {recentPoints.map((item) => {
-                const place = getNestedPlaceInfo(item);
-                return (
-                  <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card, ...(recentPoints.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
-                    {place.image ? (
-                      <Image source={{ uri: place.image }} style={styles.recentCardImage} />
-                    ) : (
-                      <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
-                        <User size={20} color={colors.textMuted} />
-                      </View>
-                    )}
-                    <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
-                    <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.created_at)}</Text>
-                    <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>+{item.points} pts</Text>
-                  </View>
-                );
-              })}
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>{formatLargeNumber(stats.points)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Points</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>{stats.deliveries}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Deliveries</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>${formatLargeNumber(Math.round(stats.earned))}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Earnings</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>${stats.avgPerDelivery.toFixed(0)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+                <Text style={[styles.statValue, { color: colors.text }]}>${stats.earningsPerKm.toFixed(1)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getPerDistanceLabel(distUnit)}</Text>
+              </View>
             </ScrollView>
+
+            {recentPoints.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Points</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalListContent}
+                >
+                  {recentPoints.map((item) => {
+                    const place = getNestedPlaceInfo(item);
+                    return (
+                      <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card, ...(recentPoints.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
+                        {place.image ? (
+                          <Image source={{ uri: place.image }} style={styles.recentCardImage} />
+                        ) : (
+                          <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
+                            <User size={20} color={colors.textMuted} />
+                          </View>
+                        )}
+                        <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
+                        <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.created_at)}</Text>
+                        <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>+{item.points} pts</Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
+
+            {/* ── Recent Deliveries Section ── */}
+            {recentDeliveries.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Deliveries</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalListContent}
+                >
+                  {recentDeliveries.map((item) => {
+                    const place = getPlaceInfo(item);
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.deliveryCard, { backgroundColor: colors.card, ...(recentDeliveries.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}
+                        onPress={() => handleDeliveryPress(item.id)}
+                        activeOpacity={0.7}
+                      >
+                        {place.image ? (
+                          <Image source={{ uri: place.image }} style={styles.deliveryCardImage} />
+                        ) : (
+                          <View style={[styles.deliveryCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
+                            <User size={20} color={colors.textMuted} />
+                          </View>
+                        )}
+                        <View style={styles.deliveryCardContent}>
+                          <Text style={[styles.deliveryCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
+                          <Text style={[styles.deliveryCardTime, { color: colors.textSecondary }]} numberOfLines={1}>Earned ${(item.courier_earnings || 0).toFixed(2)} • {timeAgo(item.delivered_at)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
+
+            {/* ── Latest Reviews Section ── */}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Reviews</Text>
+              <TouchableOpacity>
+                <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {courierReviews.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalListContent}
+              >
+                {courierReviews.map((review: any) => {
+                  const reviewDate = new Date(review.created_at);
+                  const now = new Date();
+                  const diffMs = now.getTime() - reviewDate.getTime();
+                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                  const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
+                  const customerName = review.customer?.first_name || 'Customer';
+                  return (
+                    <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
+                      <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
+                        {review.review_text}
+                      </Text>
+                      <View style={{ marginVertical: 8 }}>
+                        <StarRating rating={review.rating} size={24} />
+                      </View>
+                      <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
+                        {timeAgo} by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>{customerName}</Text>
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+                <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>No reviews yet. Reviews from customers will appear here.</Text>
+              </View>
+            )}
+
+            <View style={{ height: 40 }} />
           </>
         )}
+      </ScrollView>
 
-        {/* ── Recent Deliveries Section ── */}
-        {recentDeliveries.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Deliveries</Text>
+      {/* ── Period Picker Modal ── */}
+      {!isApplicationMode && (
+        <Modal
+          visible={showPeriodPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowPeriodPicker(false)}
+        >
+          <View style={[styles.pickerContainer, { backgroundColor: colors.background }]}>
+            <View style={[styles.pickerHeader, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+              <Text style={[styles.pickerTitle, { color: colors.text }]}>Select Period</Text>
+              <TouchableOpacity onPress={() => setShowPeriodPicker(false)}>
+                <X size={24} color={colors.text} />
+              </TouchableOpacity>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalListContent}
-            >
-              {recentDeliveries.map((item) => {
-                const place = getPlaceInfo(item);
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}>
+              {(['today', 'last_7', 'last_30', 'all_time'] as PeriodOption[]).map((period) => {
+                const isActive = selectedPeriod === period;
                 return (
                   <TouchableOpacity
-                    key={item.id}
-                    style={[styles.deliveryCard, { backgroundColor: colors.card, ...(recentDeliveries.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}
-                    onPress={() => handleDeliveryPress(item.id)}
-                    activeOpacity={0.7}
+                    key={period}
+                    style={[
+                      styles.periodOption,
+                      {
+                        backgroundColor: isActive ? colors.text : 'transparent',
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedPeriod(period);
+                      setShowPeriodPicker(false);
+                    }}
                   >
-                    {place.image ? (
-                      <Image source={{ uri: place.image }} style={styles.deliveryCardImage} />
-                    ) : (
-                      <View style={[styles.deliveryCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
-                        <User size={20} color={colors.textMuted} />
-                      </View>
-                    )}
-                    <View style={styles.deliveryCardContent}>
-                      <Text style={[styles.deliveryCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
-                      <Text style={[styles.deliveryCardTime, { color: colors.textSecondary }]} numberOfLines={1}>Earned ${(item.courier_earnings || 0).toFixed(2)} • {timeAgo(item.delivered_at)}</Text>
-                    </View>
+                    <Text style={[styles.periodOptionText, { color: isActive ? colors.background : colors.text }]}>
+                      {getPeriodLabel(period)}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-          </>
-        )}
-
-        {/* ── Latest Reviews Section ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Reviews</Text>
-          <TouchableOpacity>
-            <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {courierReviews.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalListContent}
-          >
-            {courierReviews.map((review: any) => {
-              const reviewDate = new Date(review.created_at);
-              const now = new Date();
-              const diffMs = now.getTime() - reviewDate.getTime();
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              const timeAgo = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 Day Ago' : `${diffDays} Days Ago`;
-              const customerName = review.customer?.first_name || 'Customer';
-              return (
-                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.card, ...(courierReviews.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
-                  <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={3}>
-                    {review.review_text}
-                  </Text>
-                  <View style={{ marginVertical: 8 }}>
-                    <StarRating rating={review.rating} size={24} />
-                  </View>
-                  <Text style={[styles.reviewMeta, { color: colors.textSecondary }]}>
-                    {timeAgo} by <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>{customerName}</Text>
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>No reviews yet. Reviews from customers will appear here.</Text>
           </View>
-        )}
-
-        {/* ── Recent Points Section ── */}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      {/* ── Period Picker Modal ── */}
-      <Modal
-        visible={showPeriodPicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowPeriodPicker(false)}
-      >
-        <View style={[styles.pickerContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.pickerHeader, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <Text style={[styles.pickerTitle, { color: colors.text }]}>Select Period</Text>
-            <TouchableOpacity onPress={() => setShowPeriodPicker(false)}>
-              <X size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            {(['today', 'last_7', 'last_30', 'all_time'] as PeriodOption[]).map((period) => {
-              const isActive = selectedPeriod === period;
-              return (
-                <TouchableOpacity
-                  key={period}
-                  style={[
-                    styles.periodOption,
-                    {
-                      backgroundColor: isActive ? colors.text : 'transparent',
-                    },
-                  ]}
-                  onPress={() => {
-                    setSelectedPeriod(period);
-                    setShowPeriodPicker(false);
-                  }}
-                >
-                  <Text style={[styles.periodOptionText, { color: isActive ? colors.background : colors.text }]}>
-                    {getPeriodLabel(period)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -572,6 +598,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginHorizontal: 16,
     marginBottom: 12,
+    marginTop: 8,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -631,6 +658,22 @@ const styles = StyleSheet.create({
   reviewCount: {
     fontFamily: fontFamily.regular,
     fontSize: 12,
+  },
+
+  // Application status badge
+  appBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 6,
+  },
+  appBadgeText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 11,
+    color: '#FFF',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
 
   // Slide container — full width below profile card

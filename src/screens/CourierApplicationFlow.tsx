@@ -31,6 +31,11 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { fontFamily } from '../constants/typography';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { DashboardScreen } from './DashboardScreen';
+import { MessagesScreen } from './MessagesScreen';
+import { MyProfileScreen } from './MyProfileScreen';
+import { BottomNav, type TabId } from '../components/BottomNav';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -382,6 +387,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
       }
 
       // Fetch the newly created application
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: appData } = await supabase
           .from('courier_applications')
@@ -470,56 +476,14 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     );
   }
 
-  // ── Render: Pending Dashboard ───────────────────────────────────
+  // ── Render: Pending Dashboard (uses real DashboardScreen + BottomNav) ────
 
   if (screen === 'pending-dashboard') {
-    const app = applicationData;
-    const statusLabel = app?.status === 'approved' ? 'APPROVED' : app?.status === 'rejected' ? 'APPLICATION REJECTED' : 'APPLICATION PENDING';
-    const statusColor = app?.status === 'approved' ? '#22C55E' : app?.status === 'rejected' ? '#EF4444' : '#F97316';
-    const displayName = app ? `${app.first_name} ${app.last_name}` : `${courier?.first_name || ''} ${courier?.last_name || ''}`;
-    const displayCommunity = app?.community || '';
-    const displayPic = app?.profile_picture_url || courier?.profile_picture_url || null;
-    const displayInitials = `${(app?.first_name || courier?.first_name || '')[0] || ''}${(app?.last_name || courier?.last_name || '')[0] || ''}`.toUpperCase();
-
-    const handleSignOut = async () => {
-      await supabase.auth.signOut();
-      onBack();
-    };
-
     return (
-      <View style={[styles.pendingContainer, { backgroundColor: '#000' }]}>
-        <SafeAreaView style={{ flex: 1 }}>
-          {/* Header */}
-          <View style={styles.pendingHeader}>
-            <Image source={{ uri: CHOWLOCAL_LOGO }} style={styles.pendingLogo} resizeMode="contain" />
-            <Text style={styles.pendingHeaderTitle}>Dashboard</Text>
-            <TouchableOpacity onPress={handleSignOut} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="log-out-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Divider */}
-          <View style={{ height: 1, backgroundColor: '#333' }} />
-
-          {/* Application Card */}
-          <View style={styles.pendingCard}>
-            {displayPic ? (
-              <Image source={{ uri: displayPic }} style={styles.pendingAvatar} />
-            ) : (
-              <View style={[styles.pendingAvatar, styles.pendingAvatarPlaceholder]}>
-                <Text style={styles.pendingAvatarInitials}>{displayInitials}</Text>
-              </View>
-            )}
-            <View style={styles.pendingInfo}>
-              <Text style={styles.pendingName}>{displayName}</Text>
-              <Text style={styles.pendingCommunity}>{displayCommunity}</Text>
-              <View style={[styles.pendingBadge, { backgroundColor: statusColor }]}>
-                <Text style={styles.pendingBadgeText}>{statusLabel}</Text>
-              </View>
-            </View>
-          </View>
-        </SafeAreaView>
-      </View>
+      <PendingDashboardLayout
+        applicationData={applicationData}
+        onSignOut={async () => { await supabase.auth.signOut(); onBack(); }}
+      />
     );
   }
 
@@ -630,6 +594,42 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   );
 }
 
+// ── Pending Dashboard Layout ─────────────────────────────────────────────
+// Uses the real DashboardScreen (stripped down) + BottomNav with 3 tabs
+
+type PendingTab = 'dashboard' | 'messages' | 'my-account';
+
+function PendingDashboardLayout({ applicationData, onSignOut }: { applicationData: any; onSignOut: () => void }) {
+  const { colors } = useTheme();
+  const [activeTab, setActiveTab] = useState<PendingTab>('dashboard');
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <DashboardScreen applicationData={applicationData} />;
+      case 'messages':
+        return <MessagesScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'my-account':
+        return <MyProfileScreen onBack={() => setActiveTab('dashboard')} />;
+      default:
+        return <DashboardScreen applicationData={applicationData} />;
+    }
+  };
+
+  return (
+    <SafeAreaProvider>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1 }}>{renderScreen()}</View>
+        <BottomNav
+          activeTab={activeTab as TabId}
+          onTabPress={(tab) => setActiveTab(tab as PendingTab)}
+          hiddenTabs={['deliveries', 'wallet', 'points', 'reviews', 'referrals']}
+        />
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -685,19 +685,4 @@ const styles = StyleSheet.create({
 
   // Error
   errorText: { color: '#FF3B30', fontFamily: fontFamily.regular, fontSize: 14, textAlign: 'center', marginBottom: 12 },
-
-  // Pending Dashboard
-  pendingContainer: { flex: 1 },
-  pendingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
-  pendingLogo: { width: 44, height: 44, borderRadius: 8 },
-  pendingHeaderTitle: { fontFamily: fontFamily.bold, fontSize: 20, color: '#FFF' },
-  pendingCard: { flexDirection: 'row', alignItems: 'center', margin: 20, backgroundColor: '#1A1A1A', borderRadius: 14, padding: 0, overflow: 'hidden' },
-  pendingAvatar: { width: 110, height: 110 },
-  pendingAvatarPlaceholder: { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' },
-  pendingAvatarInitials: { fontFamily: fontFamily.bold, fontSize: 32, color: '#888' },
-  pendingInfo: { flex: 1, paddingHorizontal: 16, paddingVertical: 14 },
-  pendingName: { fontFamily: fontFamily.bold, fontSize: 18, color: '#FFF', marginBottom: 4 },
-  pendingCommunity: { fontFamily: fontFamily.regular, fontSize: 14, color: '#AAA', marginBottom: 10 },
-  pendingBadge: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
-  pendingBadgeText: { fontFamily: fontFamily.bold, fontSize: 11, color: '#FFF', letterSpacing: 1, textTransform: 'uppercase' },
 });
