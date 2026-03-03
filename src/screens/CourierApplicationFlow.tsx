@@ -84,7 +84,40 @@ interface CourierApplicationFlowProps {
 
 export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) {
   const { colors, isDark } = useTheme();
-  const { courier } = useAuth();
+  const { courier, setCourier } = useAuth();
+
+  // Auto-load courier data if not set (e.g. session restored from App.tsx without setCourier)
+  useEffect(() => {
+    if (courier) return;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('customer')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, territory_id, preferred_distance_unit, dialing_code_only, phone_number_only')
+        .eq('id', user.id)
+        .single();
+      if (data) {
+        setCourier({
+          id: data.id,
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          email: data.email || '',
+          profile_picture_url: data.profile_picture_url,
+          phone_number: data.phone_number,
+          roles: Array.isArray(data.roles) ? data.roles : [],
+          is_verified: data.is_verified,
+          community: data.community,
+          is_online: data.is_online || false,
+          current_location_latitude: data.current_location_latitude,
+          current_location_longitude: data.current_location_longitude,
+          points_30_days: data.points_30_days,
+          territory_id: data.territory_id,
+          preferred_distance_unit: data.preferred_distance_unit,
+        });
+      }
+    })();
+  }, [courier]);
   const insets = useSafeAreaInsets();
 
   const [screen, setScreen] = useState<Screen>('splash');

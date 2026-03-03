@@ -228,6 +228,23 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
       if (!isCourier) {
+        setCourier({
+          id: customerData.id,
+          first_name: customerData.first_name || '',
+          last_name: customerData.last_name || '',
+          email: customerData.email || '',
+          profile_picture_url: customerData.profile_picture_url,
+          phone_number: customerData.phone_number,
+          roles: userRoles,
+          is_verified: customerData.is_verified,
+          community: customerData.community,
+          is_online: customerData.is_online || false,
+          current_location_latitude: customerData.current_location_latitude,
+          current_location_longitude: customerData.current_location_longitude,
+          points_30_days: customerData.points_30_days,
+          territory_id: customerData.territory_id,
+          preferred_distance_unit: customerData.preferred_distance_unit,
+        });
         onShowApplication?.();
         return;
       }
@@ -364,6 +381,23 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
       if (!isCourier) {
+        setCourier({
+          id: customerData.id,
+          first_name: customerData.first_name || '',
+          last_name: customerData.last_name || '',
+          email: customerData.email || '',
+          profile_picture_url: customerData.profile_picture_url,
+          phone_number: customerData.phone_number,
+          roles: userRoles,
+          is_verified: customerData.is_verified,
+          community: customerData.community,
+          is_online: customerData.is_online || false,
+          current_location_latitude: customerData.current_location_latitude,
+          current_location_longitude: customerData.current_location_longitude,
+          points_30_days: customerData.points_30_days,
+          territory_id: customerData.territory_id,
+          preferred_distance_unit: customerData.preferred_distance_unit,
+        });
         onShowApplication?.();
         return;
       }
