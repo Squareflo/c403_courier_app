@@ -188,8 +188,8 @@ export function MyProfileScreen({ onBack }: MyProfileScreenProps) {
       let localPhone = '';
 
       if (data.phone_number_only && data.dialing_code_only) {
-        dialCode = data.phone_number_only;
-        localPhone = data.dialing_code_only;
+        dialCode = data.dialing_code_only;
+        localPhone = data.phone_number_only;
       } else if (data.phone_number) {
         const spaceIdx = data.phone_number.indexOf(' ');
         if (spaceIdx > 0) {
