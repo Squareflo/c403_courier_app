@@ -31,15 +31,41 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { fontFamily } from '../constants/typography';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { DashboardScreen } from './DashboardScreen';
+import { MessagesScreen } from './MessagesScreen';
+import { MyProfileScreen } from './MyProfileScreen';
+import { BottomNav, type TabId } from '../components/BottomNav';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = 'https://rddssfhltufrwlsmbtps.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkZHNzZmhsdHVmcndsc21idHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NjExNTAsImV4cCI6MjA3NjAzNzE1MH0.vNkjdUoYthWoaphE_sp1TsNx7U2A84W515iXVkuU01k';
 const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778/background_ejkzfw.png';
 const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 const BUTTON_COLOR = '#ffd21f';
+const CHOWLOCAL_LOGO = 'https://res.cloudinary.com/chowlocal/image/upload/v1758731159/logo_dmw37v.png';
 
-type Screen = 'splash' | 'form' | 'success';
+// Province/state abbreviation to full name
+const STATE_NAMES: Record<string, string> = {
+  AB: 'Alberta', BC: 'British Columbia', MB: 'Manitoba', NB: 'New Brunswick',
+  NL: 'Newfoundland and Labrador', NS: 'Nova Scotia', NT: 'Northwest Territories',
+  NU: 'Nunavut', ON: 'Ontario', PE: 'Prince Edward Island', QC: 'Quebec',
+  SK: 'Saskatchewan', YT: 'Yukon',
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  DC: 'District of Columbia',
+};
+
+type Screen = 'splash' | 'form' | 'success' | 'pending-dashboard';
 
 interface CityPrediction {
   place_id: string;
@@ -62,6 +88,36 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   const insets = useSafeAreaInsets();
 
   const [screen, setScreen] = useState<Screen>('splash');
+
+  // Application data for pending dashboard
+  const [applicationData, setApplicationData] = useState<any>(null);
+
+  // Check for existing application on mount
+  useEffect(() => {
+    checkExistingApplication();
+  }, []);
+
+  const checkExistingApplication = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('courier_applications')
+        .select('*')
+        .eq('customer_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        setApplicationData(data);
+        setScreen('pending-dashboard');
+      }
+    } catch (err) {
+      console.log('Check existing application error:', err);
+    }
+  };
 
   // Form fields
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(courier?.profile_picture_url || null);
@@ -137,7 +193,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
         if (cityStr) {
           setCityInput(cityStr);
           setSelectedCity(cityStr);
-          if (geo.region) setSelectedState(geo.region);
+          if (geo.region) setSelectedState(STATE_NAMES[geo.region] || geo.region);
           if (geo.country) setSelectedCountry(geo.country);
         }
       }
@@ -153,17 +209,22 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     setIsSearchingCity(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
       const url = `${SUPABASE_URL}/functions/v1/google-places-autocomplete?input=${encodeURIComponent(query)}&components=country:ca|country:us&types=(cities)`;
-      console.log('[CourierApp] City search:', query, 'hasToken:', !!session?.access_token);
+      console.log('[CourierApp] City search:', query);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
       });
+      
       const data = await response.json();
-      console.log('[CourierApp] City search response:', JSON.stringify(data).substring(0, 200));
+      console.log('[CourierApp] City results:', data.predictions?.length || 0, data.status || data.error);
+      
       if (data.predictions && data.predictions.length > 0) {
         setPredictions(data.predictions);
         setShowPredictions(true);
@@ -195,8 +256,15 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
 
     // Parse state/country from description (e.g. "Regina, SK, Canada")
     const parts = desc.split(', ');
-    if (parts.length >= 3) { setSelectedState(parts[1]); setSelectedCountry(parts[2]); }
-    else if (parts.length === 2) { setSelectedState(parts[1]); setSelectedCountry(''); }
+    if (parts.length >= 3) {
+      const stateAbbr = parts[1].trim();
+      setSelectedState(STATE_NAMES[stateAbbr] || stateAbbr);
+      setSelectedCountry(parts[2]);
+    } else if (parts.length === 2) {
+      const stateAbbr = parts[1].trim();
+      setSelectedState(STATE_NAMES[stateAbbr] || stateAbbr);
+      setSelectedCountry('');
+    }
   };
 
   // ── Profile picture ───────────────────────────────────────────────
@@ -235,23 +303,40 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   const uploadImage = async (uri: string): Promise<string | null> => {
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      const filename = uri.split('/').pop() || 'photo.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const mimeType = match ? `image/${match[1]}` : 'image/jpeg';
-      formData.append('file', { uri, name: filename, type: mimeType } as any);
-      formData.append('folder', 'courier-applications');
+      // Read the image file and convert to base64
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
 
       const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+
       const res = await fetch(`${SUPABASE_URL}/functions/v1/upload-to-cloudinary`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token || ''}` },
-        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_base64: base64,
+          folder: 'courier-applications',
+        }),
       });
       const json = await res.json();
+      console.log('[CourierApp] Upload result:', json.secure_url || json.error);
       if (json.secure_url) return json.secure_url;
+      if (json.file_url) return json.file_url;
       return null;
-    } catch { return null; } finally { setIsUploading(false); }
+    } catch (err) {
+      console.error('[CourierApp] Upload error:', err);
+      return null;
+    } finally { setIsUploading(false); }
   };
 
   // ── Submit ────────────────────────────────────────────────────────
@@ -270,7 +355,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     setError('');
 
     try {
-      let finalPicUrl = profilePictureUrl;
+      let finalPicUrl: string | null = null;
       if (selectedImage) {
         const uploaded = await uploadImage(selectedImage);
         if (uploaded) finalPicUrl = uploaded;
@@ -278,13 +363,17 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
 
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Update customer profile picture if they uploaded one
+      if (finalPicUrl && user) {
+        await supabase.from('customer').update({ profile_picture_url: finalPicUrl }).eq('id', user.id);
+      }
+
       const { error: insertError } = await supabase.from('courier_applications').insert({
         customer_id: user?.id || null,
         first_name: courier?.first_name || '',
         last_name: courier?.last_name || '',
         email: courier?.email || '',
         phone_number: courier?.phone_number || '',
-        profile_picture_url: finalPicUrl,
         community: selectedCity,
         has_delivery_experience: hasDeliveryExperience,
         has_valid_drivers_license: hasDriversLicense,
@@ -296,9 +385,21 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
       });
 
       if (insertError) {
-        console.error('Insert error:', insertError);
-        setError('Failed to submit application. Please try again.');
+        console.error('Insert error:', JSON.stringify(insertError));
+        setError(`Failed to submit: ${insertError.message || insertError.code || 'Unknown error'}`);
         return;
+      }
+
+      // Fetch the newly created application
+      if (user) {
+        const { data: appData } = await supabase
+          .from('courier_applications')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (appData) setApplicationData(appData);
       }
 
       setScreen('success');
@@ -371,10 +472,21 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
             <Text style={[styles.successDesc, { color: textSecColor }]}>
               Thank you for applying to be a courier. Your application has been received and will be reviewed by a member of our team. We'll be in touch soon!
             </Text>
-            <Button title="Done" onPress={onBack} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
+            <Button title="Exit" onPress={() => setScreen('pending-dashboard')} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
           </View>
         </SafeAreaView>
       </View>
+    );
+  }
+
+  // ── Render: Pending Dashboard (uses real DashboardScreen + BottomNav) ────
+
+  if (screen === 'pending-dashboard') {
+    return (
+      <PendingDashboardLayout
+        applicationData={applicationData}
+        onSignOut={async () => { await supabase.auth.signOut(); onBack(); }}
+      />
     );
   }
 
@@ -404,8 +516,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
                   <Image source={{ uri: displayImage }} style={styles.avatarImg} />
                 ) : (
                   <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#333' : '#DDD' }]}>
-                    <Text style={[styles.avatarInitials, { color: isDark ? '#aaa' : '#666' }]}>{initials}</Text>
-                    <View style={styles.cameraOverlay}><Camera size={20} color="#fff" /></View>
+                    <View style={styles.cameraOverlay}><Camera size={32} color="#fff" /></View>
                   </View>
                 )}
               </TouchableOpacity>
@@ -486,6 +597,42 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   );
 }
 
+// ── Pending Dashboard Layout ─────────────────────────────────────────────
+// Uses the real DashboardScreen (stripped down) + BottomNav with 3 tabs
+
+type PendingTab = 'dashboard' | 'messages' | 'my-account';
+
+function PendingDashboardLayout({ applicationData, onSignOut }: { applicationData: any; onSignOut: () => void }) {
+  const { colors } = useTheme();
+  const [activeTab, setActiveTab] = useState<PendingTab>('dashboard');
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <DashboardScreen applicationData={applicationData} />;
+      case 'messages':
+        return <MessagesScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'my-account':
+        return <MyProfileScreen onBack={() => setActiveTab('dashboard')} />;
+      default:
+        return <DashboardScreen applicationData={applicationData} />;
+    }
+  };
+
+  return (
+    <SafeAreaProvider>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1 }}>{renderScreen()}</View>
+        <BottomNav
+          activeTab={activeTab as TabId}
+          onTabPress={(tab) => setActiveTab(tab as PendingTab)}
+          hiddenTabs={['deliveries', 'wallet', 'points', 'reviews', 'referrals']}
+        />
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -520,7 +667,7 @@ const styles = StyleSheet.create({
   avatarImg: { width: '100%', height: '100%' },
   avatarPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   avatarInitials: { fontFamily: fontFamily.bold, fontSize: 36 },
-  cameraOverlay: { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 },
+  cameraOverlay: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
   avatarHint: { fontFamily: fontFamily.regular, fontSize: 12, marginTop: 8 },
 
   // City search
