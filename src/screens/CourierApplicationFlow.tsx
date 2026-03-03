@@ -31,11 +31,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { fontFamily } from '../constants/typography';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { DashboardScreen } from './DashboardScreen';
-import { MessagesScreen } from './MessagesScreen';
-import { MyProfileScreen } from './MyProfileScreen';
-import { BottomNav, type TabId } from '../components/BottomNav';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,7 +39,6 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778/background_ejkzfw.png';
 const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
 const BUTTON_COLOR = '#ffd21f';
-const CHOWLOCAL_LOGO = 'https://res.cloudinary.com/chowlocal/image/upload/v1758731159/logo_dmw37v.png';
 
 // Province/state abbreviation to full name
 const STATE_NAMES: Record<string, string> = {
@@ -65,7 +59,7 @@ const STATE_NAMES: Record<string, string> = {
   DC: 'District of Columbia',
 };
 
-type Screen = 'splash' | 'form' | 'success' | 'pending-dashboard';
+type Screen = 'splash' | 'form' | 'success';
 
 interface CityPrediction {
   place_id: string;
@@ -88,36 +82,6 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   const insets = useSafeAreaInsets();
 
   const [screen, setScreen] = useState<Screen>('splash');
-
-  // Application data for pending dashboard
-  const [applicationData, setApplicationData] = useState<any>(null);
-
-  // Check for existing application on mount
-  useEffect(() => {
-    checkExistingApplication();
-  }, []);
-
-  const checkExistingApplication = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('courier_applications')
-        .select('*')
-        .eq('customer_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data && !error) {
-        setApplicationData(data);
-        setScreen('pending-dashboard');
-      }
-    } catch (err) {
-      console.log('Check existing application error:', err);
-    }
-  };
 
   // Form fields
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(courier?.profile_picture_url || null);
@@ -193,7 +157,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
         if (cityStr) {
           setCityInput(cityStr);
           setSelectedCity(cityStr);
-          if (geo.region) setSelectedState(STATE_NAMES[geo.region] || geo.region);
+          if (geo.region) setSelectedState(geo.region);
           if (geo.country) setSelectedCountry(geo.country);
         }
       }
@@ -355,7 +319,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     setError('');
 
     try {
-      let finalPicUrl: string | null = null;
+      let finalPicUrl = profilePictureUrl;
       if (selectedImage) {
         const uploaded = await uploadImage(selectedImage);
         if (uploaded) finalPicUrl = uploaded;
@@ -363,17 +327,13 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
 
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Update customer profile picture if they uploaded one
-      if (finalPicUrl && user) {
-        await supabase.from('customer').update({ profile_picture_url: finalPicUrl }).eq('id', user.id);
-      }
-
       const { error: insertError } = await supabase.from('courier_applications').insert({
         customer_id: user?.id || null,
         first_name: courier?.first_name || '',
         last_name: courier?.last_name || '',
         email: courier?.email || '',
         phone_number: courier?.phone_number || '',
+        profile_picture_url: finalPicUrl,
         community: selectedCity,
         has_delivery_experience: hasDeliveryExperience,
         has_valid_drivers_license: hasDriversLicense,
@@ -385,21 +345,9 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
       });
 
       if (insertError) {
-        console.error('Insert error:', JSON.stringify(insertError));
-        setError(`Failed to submit: ${insertError.message || insertError.code || 'Unknown error'}`);
+        console.error('Insert error:', insertError);
+        setError('Failed to submit application. Please try again.');
         return;
-      }
-
-      // Fetch the newly created application
-      if (user) {
-        const { data: appData } = await supabase
-          .from('courier_applications')
-          .select('*')
-          .eq('customer_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (appData) setApplicationData(appData);
       }
 
       setScreen('success');
@@ -472,21 +420,10 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
             <Text style={[styles.successDesc, { color: textSecColor }]}>
               Thank you for applying to be a courier. Your application has been received and will be reviewed by a member of our team. We'll be in touch soon!
             </Text>
-            <Button title="Exit" onPress={() => setScreen('pending-dashboard')} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
+            <Button title="Done" onPress={onBack} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
           </View>
         </SafeAreaView>
       </View>
-    );
-  }
-
-  // ── Render: Pending Dashboard (uses real DashboardScreen + BottomNav) ────
-
-  if (screen === 'pending-dashboard') {
-    return (
-      <PendingDashboardLayout
-        applicationData={applicationData}
-        onSignOut={async () => { await supabase.auth.signOut(); onBack(); }}
-      />
     );
   }
 
@@ -594,42 +531,6 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
-  );
-}
-
-// ── Pending Dashboard Layout ─────────────────────────────────────────────
-// Uses the real DashboardScreen (stripped down) + BottomNav with 3 tabs
-
-type PendingTab = 'dashboard' | 'messages' | 'my-account';
-
-function PendingDashboardLayout({ applicationData, onSignOut }: { applicationData: any; onSignOut: () => void }) {
-  const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<PendingTab>('dashboard');
-
-  const renderScreen = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <DashboardScreen applicationData={applicationData} />;
-      case 'messages':
-        return <MessagesScreen onBack={() => setActiveTab('dashboard')} />;
-      case 'my-account':
-        return <MyProfileScreen onBack={() => setActiveTab('dashboard')} />;
-      default:
-        return <DashboardScreen applicationData={applicationData} />;
-    }
-  };
-
-  return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flex: 1 }}>{renderScreen()}</View>
-        <BottomNav
-          activeTab={activeTab as TabId}
-          onTabPress={(tab) => setActiveTab(tab as PendingTab)}
-          hiddenTabs={['deliveries', 'wallet', 'points', 'reviews', 'referrals']}
-        />
-      </View>
-    </SafeAreaProvider>
   );
 }
 
