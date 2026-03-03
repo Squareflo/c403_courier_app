@@ -267,23 +267,40 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
   const uploadImage = async (uri: string): Promise<string | null> => {
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      const filename = uri.split('/').pop() || 'photo.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const mimeType = match ? `image/${match[1]}` : 'image/jpeg';
-      formData.append('file', { uri, name: filename, type: mimeType } as any);
-      formData.append('folder', 'courier-applications');
+      // Read the image file and convert to base64
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
 
       const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+
       const res = await fetch(`${SUPABASE_URL}/functions/v1/upload-to-cloudinary`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token || ''}` },
-        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_base64: base64,
+          folder: 'courier-applications',
+        }),
       });
       const json = await res.json();
+      console.log('[CourierApp] Upload result:', json.secure_url || json.error);
       if (json.secure_url) return json.secure_url;
+      if (json.file_url) return json.file_url;
       return null;
-    } catch { return null; } finally { setIsUploading(false); }
+    } catch (err) {
+      console.error('[CourierApp] Upload error:', err);
+      return null;
+    } finally { setIsUploading(false); }
   };
 
   // ── Submit ────────────────────────────────────────────────────────
