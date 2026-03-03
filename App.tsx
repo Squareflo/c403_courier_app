@@ -9,6 +9,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import PermissionGate from './src/components/PermissionGate';
 import { supabase } from './src/lib/supabase';
 import { useTheme } from './src/contexts/ThemeContext';
+import { CourierApplicationFlow } from './src/screens/CourierApplicationFlow';
 
 function ThemedStatusBar() {
   const { isDark } = useTheme();
@@ -23,9 +24,10 @@ function ThemedStatusBar() {
 
 const ALLOWED_COURIER_ROLES = ['courier'] as const;
 
+type AppScreen = 'loading' | 'sign-in' | 'main' | 'application';
+
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [appScreen, setAppScreen] = useState<AppScreen>('loading');
 
   const [fontsLoaded] = useFonts({
     Montserrat_400Regular,
@@ -39,34 +41,57 @@ export default function App() {
     const restoreSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { data } = await supabase
-            .from('customer')
-            .select('roles, is_verified')
-            .eq('id', session.user.id)
-            .single();
+        if (!session?.user) {
+          setAppScreen('sign-in');
+          return;
+        }
 
-          if (data?.is_verified) {
-            const userRoles = Array.isArray(data.roles) ? (data.roles as string[]) : [];
-            const hasAllowedRole = userRoles.some((role) =>
-              ALLOWED_COURIER_ROLES.includes(role as (typeof ALLOWED_COURIER_ROLES)[number])
-            );
-            if (hasAllowedRole) {
-              setIsAuthenticated(true);
-            }
-          }
+        const { data } = await supabase
+          .from('customer')
+          .select('roles, is_verified')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!data?.is_verified) {
+          setAppScreen('sign-in');
+          return;
+        }
+
+        const userRoles = Array.isArray(data.roles) ? (data.roles as string[]) : [];
+        const hasAllowedRole = userRoles.some((role) =>
+          ALLOWED_COURIER_ROLES.includes(role as (typeof ALLOWED_COURIER_ROLES)[number])
+        );
+
+        if (hasAllowedRole) {
+          setAppScreen('main');
+          return;
+        }
+
+        // Not a courier — check if they have a pending application
+        const { data: appData } = await supabase
+          .from('courier_applications')
+          .select('id')
+          .eq('customer_id', session.user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (appData) {
+          // Has an application — show the application flow (which will detect it and show pending dashboard)
+          setAppScreen('application');
+        } else {
+          // No application — show application flow (which will show splash → form)
+          setAppScreen('application');
         }
       } catch (err) {
         console.error('Session restore error:', err);
-      } finally {
-        setIsRestoringSession(false);
+        setAppScreen('sign-in');
       }
     };
 
     restoreSession();
   }, []);
 
-  if (!fontsLoaded || isRestoringSession) {
+  if (!fontsLoaded || appScreen === 'loading') {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
@@ -80,13 +105,18 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <ThemedStatusBar />
-        <AuthProvider onSignOut={() => setIsAuthenticated(false)}>
-          {isAuthenticated ? (
+        <AuthProvider onSignOut={() => setAppScreen('sign-in')}>
+          {appScreen === 'main' ? (
             <PermissionGate>
               <MainLayout />
             </PermissionGate>
+          ) : appScreen === 'application' ? (
+            <CourierApplicationFlow onBack={() => setAppScreen('sign-in')} />
           ) : (
-            <SignInScreen onSignInSuccess={() => setIsAuthenticated(true)} />
+            <SignInScreen
+              onSignInSuccess={() => setAppScreen('main')}
+              onShowApplication={() => setAppScreen('application')}
+            />
           )}
         </AuthProvider>
       </ThemeProvider>
