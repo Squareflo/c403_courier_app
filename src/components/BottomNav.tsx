@@ -82,7 +82,7 @@ const ALL_TABS: TabDef[] = [
   },
   {
     id: 'my-account',
-    label: 'My Account',
+    label: 'My Profile',
     icon: (color, size) => <Settings size={size} color={color} />,
   },
 ];
