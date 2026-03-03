@@ -31,6 +31,7 @@ import {
   verifyResetCodeAndSetPassword,
 } from '../api/functions';
 import { FlatList, Modal } from 'react-native';
+import { CourierApplicationFlow } from './CourierApplicationFlow';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
   // Screen state
   const [screen, setScreen] = useState<Screen>('auth');
   const [activeTab, setActiveTab] = useState<TabType>('signin');
+  const [showApplication, setShowApplication] = useState(false);
 
   // Sign In fields
   const [email, setEmail] = useState('');
@@ -221,7 +223,7 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
 
       if (!hasAllowedRole) {
         await supabase.auth.signOut();
-        setErrors({ general: 'This account does not have courier access.' });
+        setShowApplication(true);
         return;
       }
 
@@ -358,7 +360,7 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
 
       if (!hasAllowedRole) {
         await supabase.auth.signOut();
-        setError('This account does not have courier access. Please contact support.');
+        setShowApplication(true);
         return;
       }
 
@@ -722,6 +724,10 @@ export function SignInScreen({ onSignInSuccess }: SignInScreenProps) {
   );
 
   // ── Main render ─────────────────────────────────────────────────────
+
+  if (showApplication) {
+    return <CourierApplicationFlow onBack={() => setShowApplication(false)} />;
+  }
 
   const renderCurrentScreen = () => {
     switch (screen) {

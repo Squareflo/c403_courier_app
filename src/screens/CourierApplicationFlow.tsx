@@ -1,0 +1,505 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Camera, ChevronDown, MapPin, Search, X } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { Button } from '../components/ui';
+import FormField from '../components/ui/FormField';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { fontFamily } from '../constants/typography';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = 'https://rddssfhltufrwlsmbtps.supabase.co';
+const SPLASH_BG = 'https://res.cloudinary.com/chowlocal/image/upload/v1772499778/background_ejkzfw.png';
+const SPLASH_ICON = 'https://res.cloudinary.com/chowlocal/image/upload/v1772028968/Untitled_design_vmrzsj.png';
+const BUTTON_COLOR = '#ffd21f';
+
+type Screen = 'splash' | 'form' | 'success';
+
+interface CityPrediction {
+  place_id: string;
+  description: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
+}
+
+interface CourierApplicationFlowProps {
+  onBack: () => void;
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) {
+  const { colors, isDark } = useTheme();
+  const { courier } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  const [screen, setScreen] = useState<Screen>('splash');
+
+  // Form fields
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(courier?.profile_picture_url || null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Community / city search
+  const [cityInput, setCityInput] = useState('');
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<CityPrediction[]>([]);
+  const [isSearchingCity, setIsSearchingCity] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
+
+  // Yes/No questions
+  const [hasDeliveryExperience, setHasDeliveryExperience] = useState<boolean | null>(null);
+  const [hasDriversLicense, setHasDriversLicense] = useState<boolean | null>(null);
+  const [hasReliableVehicle, setHasReliableVehicle] = useState<boolean | null>(null);
+  const [hasCriminalRecord, setHasCriminalRecord] = useState<boolean | null>(null);
+  const [willingToCriminalCheck, setWillingToCriminalCheck] = useState<boolean | null>(null);
+  const [legallyAllowedToWork, setLegallyAllowedToWork] = useState<boolean | null>(null);
+
+  // How did you hear
+  const [howDidYouHear, setHowDidYouHear] = useState('');
+
+  // State/country from selected city
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState('');
+
+  // Shared
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Auto-detect location ──────────────────────────────────────────
+
+  useEffect(() => {
+    if (screen === 'form' && !selectedCity && !cityInput) {
+      autoDetectCity();
+    }
+  }, [screen]);
+
+  const autoDetectCity = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+
+      if (geo) {
+        const parts = [geo.city, geo.region, geo.country].filter(Boolean);
+        const cityStr = parts.join(', ');
+        if (cityStr) {
+          setCityInput(cityStr);
+          setSelectedCity(cityStr);
+          if (geo.region) setSelectedState(geo.region);
+          if (geo.country) setSelectedCountry(geo.country);
+        }
+      }
+    } catch (err) {
+      console.log('Auto-detect city error:', err);
+    }
+  };
+
+  // ── City search ───────────────────────────────────────────────────
+
+  const searchCities = useCallback(async (query: string) => {
+    if (query.length < 2) { setPredictions([]); return; }
+    setIsSearchingCity(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `${SUPABASE_URL}/functions/v1/google-places-autocomplete?input=${encodeURIComponent(query)}&components=country:ca|country:us&types=(cities)`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}`, 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (data.predictions) { setPredictions(data.predictions); setShowPredictions(true); }
+    } catch { } finally { setIsSearchingCity(false); }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (cityInput && !selectedCity) searchCities(cityInput);
+      else if (!cityInput) setPredictions([]);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [cityInput, selectedCity, searchCities]);
+
+  const handleSelectCity = (prediction: CityPrediction) => {
+    const desc = prediction.description;
+    setCityInput(desc);
+    setSelectedCity(desc);
+    setPredictions([]);
+    setShowPredictions(false);
+
+    // Parse state/country from description (e.g. "Regina, SK, Canada")
+    const parts = desc.split(', ');
+    if (parts.length >= 3) { setSelectedState(parts[1]); setSelectedCountry(parts[2]); }
+    else if (parts.length === 2) { setSelectedState(parts[1]); setSelectedCountry(''); }
+  };
+
+  // ── Profile picture ───────────────────────────────────────────────
+
+  const pickImage = async () => {
+    const options = ['Take Photo', 'Choose from Library', 'Cancel'];
+    if (Platform.OS === 'ios') {
+      const { ActionSheetIOS } = require('react-native');
+      ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, async (idx: number) => {
+        if (idx === 0) await launchCamera();
+        else if (idx === 1) await launchLibrary();
+      });
+    } else {
+      Alert.alert('Profile Photo', '', [
+        { text: 'Take Photo', onPress: launchCamera },
+        { text: 'Choose from Library', onPress: launchLibrary },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  };
+
+  const launchCamera = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) setSelectedImage(result.assets[0].uri);
+  };
+
+  const launchLibrary = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission needed', 'Photo library access is required.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) setSelectedImage(result.assets[0].uri);
+  };
+
+  const uploadImage = async (uri: string): Promise<string | null> => {
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'photo.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const mimeType = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('file', { uri, name: filename, type: mimeType } as any);
+      formData.append('folder', 'courier-applications');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/upload-to-cloudinary`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.secure_url) return json.secure_url;
+      return null;
+    } catch { return null; } finally { setIsUploading(false); }
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────
+
+  const handleSubmit = async () => {
+    // Validate
+    if (!selectedCity) { setError('Please select your community/city.'); return; }
+    if (hasDeliveryExperience === null) { setError('Please answer: Do you have delivery experience?'); return; }
+    if (hasDriversLicense === null) { setError('Please answer: Do you have a valid driver\'s license?'); return; }
+    if (hasReliableVehicle === null) { setError('Please answer: Do you have a reliable vehicle?'); return; }
+    if (hasCriminalRecord === null) { setError('Please answer: Do you have a criminal record?'); return; }
+    if (willingToCriminalCheck === null) { setError('Please answer: Are you willing to pay for a criminal record check?'); return; }
+    if (legallyAllowedToWork === null) { setError('Please answer: Are you legally allowed to work?'); return; }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      let finalPicUrl = profilePictureUrl;
+      if (selectedImage) {
+        const uploaded = await uploadImage(selectedImage);
+        if (uploaded) finalPicUrl = uploaded;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error: insertError } = await supabase.from('courier_applications').insert({
+        customer_id: user?.id || null,
+        first_name: courier?.first_name || '',
+        last_name: courier?.last_name || '',
+        email: courier?.email || '',
+        phone_number: courier?.phone_number || '',
+        profile_picture_url: finalPicUrl,
+        community: selectedCity,
+        has_delivery_experience: hasDeliveryExperience,
+        has_valid_drivers_license: hasDriversLicense,
+        has_reliable_vehicle: hasReliableVehicle,
+        has_criminal_record: hasCriminalRecord,
+        willing_to_pay_criminal_check: willingToCriminalCheck,
+        legally_allowed_to_work: legallyAllowedToWork,
+        how_did_you_hear: howDidYouHear || null,
+      });
+
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        setError('Failed to submit application. Please try again.');
+        return;
+      }
+
+      setScreen('success');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ── Dynamic colors ────────────────────────────────────────────────
+
+  const textColor = isDark ? colors.text : '#000';
+  const textSecColor = isDark ? colors.textSecondary : '#555';
+  const cardBg = isDark ? colors.card : '#fff';
+  const bg = isDark ? colors.background : '#F5F5F5';
+
+  // ── Yes/No pill ───────────────────────────────────────────────────
+
+  const YesNo = ({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void }) => (
+    <View style={styles.yesNoRow}>
+      <Text style={[styles.yesNoLabel, { color: textColor }]}>{label}</Text>
+      <View style={styles.yesNoBtns}>
+        <TouchableOpacity
+          style={[styles.yesNoBtn, value === true && { backgroundColor: isDark ? '#FFF' : '#000' }]}
+          onPress={() => onChange(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.yesNoBtnText, { color: value === true ? (isDark ? '#000' : '#FFF') : textSecColor }]}>Yes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.yesNoBtn, value === false && { backgroundColor: isDark ? '#FFF' : '#000' }]}
+          onPress={() => onChange(false)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.yesNoBtnText, { color: value === false ? (isDark ? '#000' : '#FFF') : textSecColor }]}>No</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // ── Render: Splash ────────────────────────────────────────────────
+
+  if (screen === 'splash') {
+    return (
+      <ImageBackground source={{ uri: SPLASH_BG }} style={styles.splashContainer} resizeMode="cover">
+        <SafeAreaView style={styles.splashSafe}>
+          <View style={styles.splashContent}>
+            <Image source={{ uri: SPLASH_ICON }} style={styles.splashIcon} resizeMode="contain" />
+            <Text style={styles.splashTitle}>Drive For Us</Text>
+            <Text style={styles.splashSubtitle}>Reliable, couriers Wanted In Various Cities</Text>
+            <TouchableOpacity style={[styles.splashButton, { backgroundColor: BUTTON_COLOR }]} onPress={() => setScreen('form')} activeOpacity={0.8}>
+              <Text style={styles.splashButtonText}>SIGN ME UP</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
+    );
+  }
+
+  // ── Render: Success ───────────────────────────────────────────────
+
+  if (screen === 'success') {
+    return (
+      <View style={[styles.successContainer, { backgroundColor: bg }]}>
+        <SafeAreaView style={styles.successSafe}>
+          <View style={styles.successContent}>
+            <Ionicons name="checkmark-circle" size={100} color="#22C55E" />
+            <Text style={[styles.successTitle, { color: textColor }]}>Application Received!</Text>
+            <Text style={[styles.successDesc, { color: textSecColor }]}>
+              Thank you for applying to be a courier. Your application has been received and will be reviewed by a member of our team. We'll be in touch soon!
+            </Text>
+            <Button title="Done" onPress={onBack} variant="dark" size="large" style={{ marginTop: 32, width: '100%' }} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Render: Form ──────────────────────────────────────────────────
+
+  const displayImage = selectedImage || profilePictureUrl;
+  const initials = `${(courier?.first_name || '')[0] || ''}${(courier?.last_name || '')[0] || ''}`.toUpperCase();
+
+  return (
+    <View style={[styles.formOuter, { backgroundColor: bg }]}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          {/* Header */}
+          <View style={styles.formHeader}>
+            <TouchableOpacity onPress={() => setScreen('splash')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <ArrowLeft size={24} color={textColor} />
+            </TouchableOpacity>
+            <Text style={[styles.formHeaderTitle, { color: textColor }]}>Courier Application</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Profile Picture */}
+            <View style={styles.avatarSection}>
+              <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage} activeOpacity={0.8}>
+                {displayImage ? (
+                  <Image source={{ uri: displayImage }} style={styles.avatarImg} />
+                ) : (
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#333' : '#DDD' }]}>
+                    <Text style={[styles.avatarInitials, { color: isDark ? '#aaa' : '#666' }]}>{initials}</Text>
+                    <View style={styles.cameraOverlay}><Camera size={20} color="#fff" /></View>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={[styles.avatarHint, { color: textSecColor }]}>Tap to add a profile photo</Text>
+            </View>
+
+            {/* Community / City Search */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[styles.sectionLabel, { color: textSecColor }]}>Community</Text>
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  style={[styles.cityInput, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: textColor }]}
+                  placeholder="Search for your city..."
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={cityInput}
+                  onChangeText={t => { setCityInput(t); if (selectedCity) { setSelectedCity(null); setSelectedState(''); setSelectedCountry(''); } }}
+                  autoCapitalize="words"
+                />
+                {selectedCity ? (
+                  <TouchableOpacity style={styles.cityIconBtn} onPress={() => { setCityInput(''); setSelectedCity(null); setSelectedState(''); setSelectedCountry(''); setPredictions([]); setShowPredictions(false); }}>
+                    <X size={20} color={textSecColor} />
+                  </TouchableOpacity>
+                ) : isSearchingCity ? (
+                  <View style={styles.cityIconBtn}><ActivityIndicator size="small" color={textSecColor} /></View>
+                ) : (
+                  <View style={styles.cityIconBtn}><Search size={20} color={textSecColor} /></View>
+                )}
+              </View>
+
+              {showPredictions && predictions.length > 0 && !selectedCity && (
+                <View style={[styles.predictionsBox, { backgroundColor: cardBg, borderColor: colors.inputBorder }]}>
+                  {predictions.map(p => (
+                    <TouchableOpacity key={p.place_id} style={[styles.predictionItem, { borderBottomColor: isDark ? colors.border : '#f0f0f0' }]} onPress={() => handleSelectCity(p)}>
+                      <MapPin size={18} color={textSecColor} style={{ marginRight: 12 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.predMainText, { color: textColor }]}>{p.structured_formatting.main_text}</Text>
+                        <Text style={[styles.predSecText, { color: textSecColor }]} numberOfLines={1}>{p.structured_formatting.secondary_text}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Yes/No Questions */}
+            <YesNo label="Do you have experience doing deliveries?" value={hasDeliveryExperience} onChange={setHasDeliveryExperience} />
+            <YesNo label="Do you have a valid driver's license?" value={hasDriversLicense} onChange={setHasDriversLicense} />
+            <YesNo label="Do you have a reliable vehicle?" value={hasReliableVehicle} onChange={setHasReliableVehicle} />
+            <YesNo label="Do you have a criminal record?" value={hasCriminalRecord} onChange={setHasCriminalRecord} />
+            <YesNo label="Are you willing to pay for a criminal record check?" value={willingToCriminalCheck} onChange={setWillingToCriminalCheck} />
+            <YesNo
+              label={`Are you legally allowed to work in ${selectedState || '...'}${selectedCountry ? `, ${selectedCountry}` : ''}?`}
+              value={legallyAllowedToWork}
+              onChange={setLegallyAllowedToWork}
+            />
+
+            {/* How did you hear */}
+            <FormField label="How did you hear about us?" value={howDidYouHear} onChangeText={setHowDidYouHear} placeholder="e.g. Facebook, friend, etc." autoCapitalize="sentences" />
+
+            {/* Error */}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            {/* Submit */}
+            <Button
+              title={isSubmitting ? (isUploading ? 'Uploading Photo...' : 'Submitting...') : 'Submit Application'}
+              onPress={handleSubmit}
+              variant="dark"
+              size="large"
+              disabled={isSubmitting}
+              style={{ marginTop: 8, marginBottom: 40 }}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+  // Splash
+  splashContainer: { flex: 1 },
+  splashSafe: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  splashContent: { alignItems: 'center', paddingHorizontal: 32 },
+  splashIcon: { width: 160, height: 160, marginBottom: 16 },
+  splashTitle: { fontFamily: fontFamily.bold, fontSize: 36, color: '#FFF', fontStyle: 'italic', textAlign: 'center', marginBottom: 8 },
+  splashSubtitle: { fontFamily: fontFamily.regular, fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: 32 },
+  splashButton: { borderRadius: 12, paddingVertical: 18, paddingHorizontal: 60, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+  splashButtonText: { fontFamily: fontFamily.bold, fontSize: 18, color: '#000', textAlign: 'center', letterSpacing: 2 },
+
+  // Success
+  successContainer: { flex: 1 },
+  successSafe: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  successContent: { alignItems: 'center', paddingHorizontal: 32 },
+  successTitle: { fontFamily: fontFamily.bold, fontSize: 28, marginTop: 24, textAlign: 'center' },
+  successDesc: { fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 24, marginTop: 16, textAlign: 'center' },
+
+  // Form
+  formOuter: { flex: 1 },
+  formHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16 },
+  formHeaderTitle: { fontFamily: fontFamily.bold, fontSize: 20 },
+  formScroll: { paddingHorizontal: 24, paddingTop: 8 },
+
+  // Avatar
+  avatarSection: { alignItems: 'center', marginBottom: 28 },
+  avatarWrapper: { width: 120, height: 120, borderRadius: 60, overflow: 'hidden', borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)' },
+  avatarImg: { width: '100%', height: '100%' },
+  avatarPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  avatarInitials: { fontFamily: fontFamily.bold, fontSize: 36 },
+  cameraOverlay: { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 },
+  avatarHint: { fontFamily: fontFamily.regular, fontSize: 12, marginTop: 8 },
+
+  // City search
+  sectionLabel: { fontFamily: fontFamily.semiBold, fontSize: 14, marginBottom: 8 },
+  cityInput: { paddingVertical: 14, paddingHorizontal: 18, paddingRight: 44, borderRadius: 10, fontSize: 16, fontFamily: fontFamily.regular, borderWidth: 1, letterSpacing: 0 },
+  cityIconBtn: { position: 'absolute', right: 12, top: 14, padding: 2 },
+  predictionsBox: { borderRadius: 10, marginTop: 8, borderWidth: 1, overflow: 'hidden' },
+  predictionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1 },
+  predMainText: { fontFamily: fontFamily.semiBold, fontSize: 14 },
+  predSecText: { fontFamily: fontFamily.regular, fontSize: 12, marginTop: 2 },
+
+  // Yes/No
+  yesNoRow: { marginBottom: 20 },
+  yesNoLabel: { fontFamily: fontFamily.regular, fontSize: 15, marginBottom: 10, lineHeight: 22 },
+  yesNoBtns: { flexDirection: 'row', gap: 10 },
+  yesNoBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#888', alignItems: 'center' },
+  yesNoBtnText: { fontFamily: fontFamily.semiBold, fontSize: 15 },
+
+  // Error
+  errorText: { color: '#FF3B30', fontFamily: fontFamily.regular, fontSize: 14, textAlign: 'center', marginBottom: 12 },
+});
