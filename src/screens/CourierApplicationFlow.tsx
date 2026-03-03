@@ -387,7 +387,6 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
       }
 
       // Fetch the newly created application
-      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: appData } = await supabase
           .from('courier_applications')
