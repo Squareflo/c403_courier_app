@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
-import { WalletScreen } from './WalletScreen';
+import { WalletScreen, StripeConnectScreen } from './WalletScreen';
 import { PointsScreen } from './PointsScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { MessageDetailScreen } from './MessageDetailScreen';
@@ -26,6 +26,8 @@ import { OnlineScreen } from './OnlineScreen';
 import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
 import { ReviewsScreen } from './ReviewsScreen';
+import { ReferralsScreen } from './ReferralsScreen';
+import { CateringScreen } from './CateringScreen';
 import { MyProfileScreen } from './MyProfileScreen';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
@@ -46,7 +48,7 @@ const ONLINE_STATUS_POLL_INTERVAL = 15000;
  * EXCLUSIVE OFFER TAKEOVER:
  * 1. Splash screen with looping notification sound
  * 2. Courier taps "OPEN" to view offer details
- * 3. OpenOfferScreen forced with no back — accept, reject, or expiry only
+ * 3. OpenOfferScreen forced with no back -- accept, reject, or expiry only
  */
 export function MainLayout() {
   const { colors } = useTheme();
@@ -72,7 +74,7 @@ export function MainLayout() {
   const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
   const [lastReadChatId, setLastReadChatId] = useState<string | null>(null);
 
-  // Forced exclusive offer state — takes over entire app
+  // Forced exclusive offer state -- takes over entire app
   const [forcedExclusiveOffer, setForcedExclusiveOffer] = useState<{
     deliveryRequestId: string;
     offerId: string;
@@ -91,8 +93,10 @@ export function MainLayout() {
   // Polling ref for is_online status
   const onlineStatusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Set audio mode ONCE on mount — MixWithOthers so we never duck other apps ──
+  // Conditionally hide stripe-express tab if courier has no stripe_account_id
+  const hiddenTabs: TabId[] = courier?.stripe_account_id ? [] : ['stripe-express'];
 
+  // Set audio mode ONCE on mount
   useEffect(() => {
     Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
@@ -102,11 +106,10 @@ export function MainLayout() {
       interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
       shouldDuckAndroid: false,
       playThroughEarpieceAndroid: false,
-    }).catch((err) => console.warn('[MainLayout] Audio mode setup error:', err));
+    }).catch((err: any) => console.warn('[MainLayout] Audio mode setup error:', err));
   }, []);
 
-  // ── Poll is_online status from DB ───────────────────────────────────────
-
+  // Poll is_online status from DB
   useEffect(() => {
     if (!courier?.id) return;
 
@@ -125,20 +128,16 @@ export function MainLayout() {
 
         if (data) {
           const dbIsOnline = data.is_online === true;
-
-          // If DB says offline but local state says online — force offline
           if (!dbIsOnline && isOnline) {
-            console.log('[MainLayout] DB says offline — syncing local state to offline');
+            console.log('[MainLayout] DB says offline -- syncing local state to offline');
             setIsOnline(false);
             setSelectedOffer(null);
             setActiveDeliveryId(null);
             setActiveTab('dashboard');
             refreshCourier();
           }
-
-          // If DB says online but local state says offline — force online
           if (dbIsOnline && !isOnline) {
-            console.log('[MainLayout] DB says online — syncing local state to online');
+            console.log('[MainLayout] DB says online -- syncing local state to online');
             setIsOnline(true);
             refreshCourier();
           }
@@ -148,10 +147,7 @@ export function MainLayout() {
       }
     };
 
-    // Run immediately on mount
     checkOnlineStatus();
-
-    // Then poll every 15 seconds
     onlineStatusPollRef.current = setInterval(checkOnlineStatus, ONLINE_STATUS_POLL_INTERVAL);
 
     return () => {
@@ -162,13 +158,10 @@ export function MainLayout() {
     };
   }, [courier?.id, isOnline, refreshCourier]);
 
-  // ── Play exclusive offer notification sound (looping) ───────────────────
-
+  // Play exclusive offer notification sound (looping)
   const playExclusiveOfferSound = useCallback(async () => {
     try {
       console.log('[MainLayout] Playing exclusive offer sound...');
-
-      // Unload any previous sound
       if (soundRef.current) {
         try {
           await soundRef.current.stopAsync();
@@ -176,25 +169,19 @@ export function MainLayout() {
         } catch {}
         soundRef.current = null;
       }
-
       console.log('[MainLayout] Loading sound from:', EXCLUSIVE_OFFER_SOUND_URL);
-
       const { sound, status } = await Audio.Sound.createAsync(
         { uri: EXCLUSIVE_OFFER_SOUND_URL },
         { shouldPlay: true, volume: 1.0, isLooping: true },
       );
-
       console.log('[MainLayout] Sound loaded, looping, status:', JSON.stringify(status));
       soundRef.current = sound;
-
-      console.log('[MainLayout] ✅ Exclusive offer notification sound playing (looping)');
     } catch (err) {
-      console.error('[MainLayout] ❌ Could not play exclusive offer sound:', err);
+      console.error('[MainLayout] Could not play exclusive offer sound:', err);
     }
   }, []);
 
-  // ── Stop the looping sound ──────────────────────────────────────────────
-
+  // Stop the looping sound
   const stopExclusiveOfferSound = useCallback(async () => {
     if (soundRef.current) {
       try {
@@ -217,11 +204,9 @@ export function MainLayout() {
     };
   }, []);
 
-  // ── Check for pending exclusive offers ──────────────────────────────────
-
+  // Check for pending exclusive offers
   const checkForExclusiveOffer = useCallback(async () => {
     if (!courier?.id) return;
-
     try {
       const { data, error } = await supabase
         .from('delivery_offer')
@@ -232,15 +217,10 @@ export function MainLayout() {
         .order('offered_at', { ascending: false })
         .limit(1);
 
-      if (error) {
-        console.error('[MainLayout] Error checking exclusive offers:', error);
-        return;
-      }
+      if (error) { console.error('[MainLayout] Error checking exclusive offers:', error); return; }
 
       if (data && data.length > 0) {
         const offer = data[0];
-
-        // Check if it hasn't expired yet
         if (offer.expires_at) {
           const expiresAt = new Date(offer.expires_at);
           const now = new Date();
@@ -251,16 +231,12 @@ export function MainLayout() {
             return;
           }
         }
-
         console.log('[MainLayout] Found pending exclusive offer:', offer.id);
-
-        // Play sound if this is a NEW offer
         if (lastTriggeredOfferIdRef.current !== offer.id) {
           lastTriggeredOfferIdRef.current = offer.id;
           setExclusiveSplashDismissed(false);
           playExclusiveOfferSound();
         }
-
         setForcedExclusiveOffer({
           deliveryRequestId: offer.delivery_request_id,
           offerId: offer.id,
@@ -271,40 +247,28 @@ export function MainLayout() {
         setExclusiveSplashDismissed(false);
         stopExclusiveOfferSound();
       }
-    } catch (err) {
-      console.error('[MainLayout] Error checking exclusive offers:', err);
-    }
+    } catch (err) { console.error('[MainLayout] Error checking exclusive offers:', err); }
   }, [courier?.id, playExclusiveOfferSound, stopExclusiveOfferSound]);
 
-  // Check on mount and when courier changes
-  useEffect(() => {
-    checkForExclusiveOffer();
-  }, [checkForExclusiveOffer]);
+  useEffect(() => { checkForExclusiveOffer(); }, [checkForExclusiveOffer]);
 
   // Realtime subscription for delivery_offer changes
   useEffect(() => {
     if (!courier?.id) return;
-
     const subscription = supabase
       .channel(`exclusive-offer-watch-${courier.id}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'delivery_offer',
-        },
+        { event: '*', schema: 'public', table: 'delivery_offer' },
         (payload: any) => {
           console.log('[MainLayout] delivery_offer realtime event:', payload.eventType);
-
-          // New exclusive offer inserted for this courier
           if (
             payload.eventType === 'INSERT' &&
             payload.new.type === 'exclusive' &&
             payload.new.courier_id === courier.id &&
             payload.new.status === 'pending'
           ) {
-            console.log('[MainLayout] New exclusive offer detected — forcing splash');
+            console.log('[MainLayout] New exclusive offer detected -- forcing splash');
             lastTriggeredOfferIdRef.current = payload.new.id;
             setExclusiveSplashDismissed(false);
             playExclusiveOfferSound();
@@ -314,34 +278,16 @@ export function MainLayout() {
               expiresAt: payload.new.expires_at,
             });
           }
-
-          // Offer status changed (accepted/rejected/timed_out)
-          // Don't clear forcedExclusiveOffer here — let OpenOfferScreen
-          // handle its own exit via onOfferResolved so the points lost
-          // modal has time to display before unmounting.
         }
       )
       .subscribe((status: string) => {
         console.log('[MainLayout] Exclusive offer subscription:', status);
       });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => { subscription.unsubscribe(); };
   }, [courier?.id, playExclusiveOfferSound, stopExclusiveOfferSound]);
 
-  // ── Tab navigation ──────────────────────────────────────────────────────
-
-  const handleTabPress = (tab: TabId) => {
-    setActiveTab(tab);
-  };
-
-  // ── Online mode ─────────────────────────────────────────────────────────
-
-  const handleWentOnline = () => {
-    setIsOnline(true);
-  };
-
+  const handleTabPress = (tab: TabId) => { console.log('[MainLayout] Tab pressed:', tab); setActiveTab(tab); };
+  const handleWentOnline = () => { setIsOnline(true); };
   const handleWentOffline = () => {
     setIsOnline(false);
     setSelectedOffer(null);
@@ -349,23 +295,10 @@ export function MainLayout() {
     setActiveTab('dashboard');
   };
 
-  // ── Smart post-accept routing ───────────────────────────────────────────
-  // After accepting a delivery, route the courier based on how many
-  // OTHER active deliveries they have:
-  //   0 others → go to the just-accepted delivery
-  //   1 other  → go to that other delivery (it was already in progress)
-  //   2+ others → go to OnlineScreen (pick from the list)
-
   const handleOfferResolved = useCallback(async (acceptedDeliveryId?: string) => {
     setSelectedOffer(null);
-
-    if (!acceptedDeliveryId || !courier?.id) {
-      // Reject / expiry / no ID — just go back to OnlineScreen
-      return;
-    }
-
+    if (!acceptedDeliveryId || !courier?.id) return;
     try {
-      // Count other active deliveries (excluding the one just accepted)
       const { data: otherDeliveries, error } = await supabase
         .from('delivery_request')
         .select('id')
@@ -373,42 +306,19 @@ export function MainLayout() {
         .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
         .neq('id', acceptedDeliveryId);
 
-      if (error) {
-        console.error('[MainLayout] Error checking other deliveries:', error);
-        // Fallback: go to the accepted delivery
-        setActiveDeliveryId(acceptedDeliveryId);
-        return;
-      }
-
+      if (error) { console.error('[MainLayout] Error checking other deliveries:', error); setActiveDeliveryId(acceptedDeliveryId); return; }
       const otherCount = otherDeliveries?.length || 0;
       console.log('[MainLayout] Post-accept routing: other active deliveries =', otherCount);
-
-      if (otherCount === 0) {
-        // No other deliveries — go to the just-accepted delivery
-        setActiveDeliveryId(acceptedDeliveryId);
-      } else if (otherCount === 1) {
-        // 1 other delivery — go to that one (it needs attention)
-        setActiveDeliveryId(otherDeliveries![0].id);
-      } else {
-        // 2+ other deliveries — go to OnlineScreen to pick
-        // activeDeliveryId stays null, which shows OnlineScreen
-      }
-    } catch (err) {
-      console.error('[MainLayout] Error in post-accept routing:', err);
-      // Fallback: go to the accepted delivery
-      setActiveDeliveryId(acceptedDeliveryId);
-    }
+      if (otherCount === 0) setActiveDeliveryId(acceptedDeliveryId);
+      else if (otherCount === 1) setActiveDeliveryId(otherDeliveries![0].id);
+    } catch (err) { console.error('[MainLayout] Error in post-accept routing:', err); setActiveDeliveryId(acceptedDeliveryId); }
   }, [courier?.id]);
-
-  // ── Handle exclusive offer resolved (accept/reject/expiry) ──────────────
 
   const handleExclusiveResolved = useCallback(async (acceptedDeliveryId?: string) => {
     setForcedExclusiveOffer(null);
     setExclusiveSplashDismissed(false);
     stopExclusiveOfferSound();
-
     if (acceptedDeliveryId && courier?.id) {
-      // Use same smart routing for exclusive offers
       try {
         const { data: otherDeliveries, error } = await supabase
           .from('delivery_request')
@@ -417,155 +327,82 @@ export function MainLayout() {
           .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
           .neq('id', acceptedDeliveryId);
 
-        if (error) {
-          setActiveDeliveryId(acceptedDeliveryId);
-          checkForExclusiveOffer();
-          return;
-        }
-
+        if (error) { setActiveDeliveryId(acceptedDeliveryId); checkForExclusiveOffer(); return; }
         const otherCount = otherDeliveries?.length || 0;
         console.log('[MainLayout] Post-exclusive-accept routing: other active deliveries =', otherCount);
-
-        if (otherCount === 0) {
-          setActiveDeliveryId(acceptedDeliveryId);
-        } else if (otherCount === 1) {
-          setActiveDeliveryId(otherDeliveries![0].id);
-        }
-        // 2+ → stay on OnlineScreen (activeDeliveryId stays null)
-      } catch (err) {
-        console.error('[MainLayout] Error in exclusive post-accept routing:', err);
-        setActiveDeliveryId(acceptedDeliveryId);
-      }
+        if (otherCount === 0) setActiveDeliveryId(acceptedDeliveryId);
+        else if (otherCount === 1) setActiveDeliveryId(otherDeliveries![0].id);
+      } catch (err) { console.error('[MainLayout] Error in exclusive post-accept routing:', err); setActiveDeliveryId(acceptedDeliveryId); }
     }
-
     checkForExclusiveOffer();
   }, [courier?.id, stopExclusiveOfferSound, checkForExclusiveOffer]);
 
-  // ── Handle "OPEN" tap on splash screen ──────────────────────────────────
+  const handleOpenExclusiveOffer = () => { tapFeedback(); stopExclusiveOfferSound(); setExclusiveSplashDismissed(true); };
+  const handleDashboardDeliveryPress = (deliveryId: string) => { setViewingDeliveryId(deliveryId); };
 
-  const handleOpenExclusiveOffer = () => {
-    tapFeedback();
-    stopExclusiveOfferSound();
-    setExclusiveSplashDismissed(true);
-  };
-
-  // ── Handle delivery press from dashboard (offline) ──────────────────────
-
-  const handleDashboardDeliveryPress = (deliveryId: string) => {
-    setViewingDeliveryId(deliveryId);
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FORCED EXCLUSIVE OFFER — takes priority over EVERYTHING
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  // FORCED EXCLUSIVE OFFER -- takes priority over EVERYTHING
   if (forcedExclusiveOffer) {
-    // Show splash screen until courier taps "OPEN"
     if (!exclusiveSplashDismissed) {
       return (
         <SafeAreaProvider>
-          <ExclusiveOfferSplash
-            expiresAt={forcedExclusiveOffer.expiresAt}
-            onOpen={handleOpenExclusiveOffer}
-            onExpired={handleExclusiveResolved}
-          />
+          <ExclusiveOfferSplash expiresAt={forcedExclusiveOffer.expiresAt} onOpen={handleOpenExclusiveOffer} onExpired={handleExclusiveResolved} />
         </SafeAreaProvider>
       );
     }
-
-    // After tapping "OPEN", show the full offer details
     return (
       <SafeAreaProvider>
         <View style={[styles.root, { backgroundColor: colors.background }]}>
-          <OpenOfferScreen
-            deliveryRequestId={forcedExclusiveOffer.deliveryRequestId}
-            offerType="exclusive"
-            isForced
-            onBack={() => handleExclusiveResolved()}
-            onOfferResolved={handleExclusiveResolved}
-          />
+          <OpenOfferScreen deliveryRequestId={forcedExclusiveOffer.deliveryRequestId} offerType="exclusive" isForced onBack={() => handleExclusiveResolved()} onOfferResolved={handleExclusiveResolved} />
         </View>
       </SafeAreaProvider>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // VIEWING COMPLETED DELIVERY FROM DASHBOARD (offline mode)
-  // ═══════════════════════════════════════════════════════════════════════════
-
   if (viewingDeliveryId) {
     return (
       <SafeAreaProvider>
         <View style={[styles.root, { backgroundColor: colors.background }]}>
-          <ActiveDeliveryScreen
-            deliveryRequestId={viewingDeliveryId}
-            onBack={() => setViewingDeliveryId(null)}
-            onDeliveryCompleted={() => setViewingDeliveryId(null)}
-          />
+          <ActiveDeliveryScreen deliveryRequestId={viewingDeliveryId} onBack={() => setViewingDeliveryId(null)} onDeliveryCompleted={() => setViewingDeliveryId(null)} />
         </View>
       </SafeAreaProvider>
     );
   }
 
-  // ── If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
-
+  // If online, show OnlineScreen, OpenOfferScreen, or ActiveDeliveryScreen
   if (isOnline || courier?.is_online) {
     if (selectedOffer) {
       return (
         <SafeAreaProvider>
           <View style={[styles.root, { backgroundColor: colors.background }]}>
-            <OpenOfferScreen
-              deliveryRequestId={selectedOffer.id}
-              offerType={selectedOffer.type}
-              onBack={() => setSelectedOffer(null)}
-              onOfferResolved={handleOfferResolved}
-            />
+            <OpenOfferScreen deliveryRequestId={selectedOffer.id} offerType={selectedOffer.type} onBack={() => setSelectedOffer(null)} onOfferResolved={handleOfferResolved} />
           </View>
         </SafeAreaProvider>
       );
     }
-
     if (activeDeliveryId) {
       return (
         <SafeAreaProvider>
           <View style={[styles.root, { backgroundColor: colors.background }]}>
-            <ActiveDeliveryScreen
-              deliveryRequestId={activeDeliveryId}
-              onBack={() => setActiveDeliveryId(null)}
-              onDeliveryCompleted={() => {
-                setActiveDeliveryId(null);
-              }}
-              onOfferPress={(id, type) => setSelectedOffer({ id, type })}
-            />
+            <ActiveDeliveryScreen deliveryRequestId={activeDeliveryId} onBack={() => setActiveDeliveryId(null)} onDeliveryCompleted={() => { setActiveDeliveryId(null); }} onOfferPress={(id: string, type: 'open' | 'exclusive') => setSelectedOffer({ id, type })} />
           </View>
         </SafeAreaProvider>
       );
     }
-
     return (
       <SafeAreaProvider>
         <View style={[styles.root, { backgroundColor: colors.background }]}>
-          <OnlineScreen
-            onGoOffline={handleWentOffline}
-            onOfferPress={(id, type) => setSelectedOffer({ id, type })}
-            onAcceptedDeliveryPress={(id) => setActiveDeliveryId(id)}
-          />
+          <OnlineScreen onGoOffline={handleWentOffline} onOfferPress={(id: string, type: 'open' | 'exclusive') => setSelectedOffer({ id, type })} onAcceptedDeliveryPress={(id: string) => setActiveDeliveryId(id)} />
         </View>
       </SafeAreaProvider>
     );
   }
 
-  // ─── Offline: Main tab screens with bottom nav ──────────────────────────
-
+  // Offline: Main tab screens with bottom nav
   const renderScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return (
-          <DashboardScreen
-            onWentOnline={handleWentOnline}
-            onDeliveryPress={handleDashboardDeliveryPress}
-          />
-        );
+        return <DashboardScreen onWentOnline={handleWentOnline} onDeliveryPress={handleDashboardDeliveryPress} />;
       case 'deliveries':
         return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} onBack={() => setActiveTab('dashboard')} />;
       case 'wallet':
@@ -576,8 +413,8 @@ export function MainLayout() {
         return (
           <MessagesScreen
             onBack={() => setActiveTab('dashboard')}
-            onMessagePress={(id) => setViewingMessageId(id)}
-            onChatPress={(id) => setViewingChatId(id)}
+            onMessagePress={(id: string) => setViewingMessageId(id)}
+            onChatPress={(id: string) => setViewingChatId(id)}
             markMessageReadLocally={lastReadMessageId}
             markChatReadLocally={lastReadChatId}
           />
@@ -585,9 +422,13 @@ export function MainLayout() {
       case 'reviews':
         return <ReviewsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'referrals':
-        return <PlaceholderScreen title="Referrals" />;
+        return <ReferralsScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'catering':
+        return <CateringScreen onBack={() => setActiveTab('dashboard')} />;
       case 'my-account':
         return <MyProfileScreen onBack={() => setActiveTab('dashboard')} />;
+      case 'stripe-express':
+        return <StripeConnectScreen onBack={() => setActiveTab('dashboard')} onConnected={() => { refreshCourier(); setActiveTab('wallet'); }} standalone />;
       default:
         return <PlaceholderScreen title={activeTab} />;
     }
@@ -611,15 +452,13 @@ export function MainLayout() {
             <ChatScreen chatId={viewingChatId} onBack={() => { setLastReadChatId(viewingChatId); setViewingChatId(null); }} />
           </View>
         )}
-        {!viewingChatId && !viewingMessageId && <BottomNav activeTab={activeTab} onTabPress={handleTabPress} />}
+        {!viewingChatId && !viewingMessageId && <BottomNav activeTab={activeTab} onTabPress={handleTabPress} hiddenTabs={hiddenTabs} />}
       </View>
     </SafeAreaProvider>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Exclusive Offer Splash Screen
-// ═══════════════════════════════════════════════════════════════════════════════
 
 interface ExclusiveOfferSplashProps {
   expiresAt: string | null;
@@ -631,52 +470,29 @@ function ExclusiveOfferSplash({ expiresAt, onOpen, onExpired }: ExclusiveOfferSp
   const insets = useSafeAreaInsets();
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  // Calculate and update countdown
   useEffect(() => {
     if (!expiresAt) return;
-
     const update = () => {
       const now = new Date();
       const expires = new Date(expiresAt);
       const remaining = Math.max(0, Math.floor((expires.getTime() - now.getTime()) / 1000));
-
-      if (remaining <= 0) {
-        onExpired();
-        return;
-      }
-
+      if (remaining <= 0) { onExpired(); return; }
       setCountdown(remaining);
     };
-
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [expiresAt, onExpired]);
 
   return (
-    <ImageBackground
-      source={{ uri: EXCLUSIVE_BG_URL }}
-      style={splashStyles.background}
-      resizeMode="cover"
-    >
+    <ImageBackground source={{ uri: EXCLUSIVE_BG_URL }} style={splashStyles.background} resizeMode="cover">
       <View style={[splashStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={splashStyles.content}>
-          <Image
-            source={{ uri: EXCLUSIVE_ICON_URL }}
-            style={splashStyles.icon}
-            resizeMode="contain"
-          />
-
+          <Image source={{ uri: EXCLUSIVE_ICON_URL }} style={splashStyles.icon} resizeMode="contain" />
           <Text style={splashStyles.title}>Exclusive Offer!</Text>
-
-          <TouchableOpacity
-            style={splashStyles.openButton}
-            onPress={onOpen}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={splashStyles.openButton} onPress={onOpen} activeOpacity={0.8}>
             <Text style={splashStyles.openButtonText}>OPEN</Text>
           </TouchableOpacity>
-
           {countdown !== null && (
             <Text style={splashStyles.countdown}>
               Expires in {countdown} Second{countdown !== 1 ? 's' : ''}
@@ -689,55 +505,17 @@ function ExclusiveOfferSplash({ expiresAt, onOpen, onExpired }: ExclusiveOfferSp
 }
 
 const splashStyles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  icon: {
-    width: 180,
-    height: 180,
-    marginBottom: 24,
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: 34,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  openButton: {
-    backgroundColor: '#27d20b',
-    borderRadius: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 260,
-    marginBottom: 20,
-  },
-  openButtonText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 20,
-    color: '#FFFFFF',
-    letterSpacing: 1.5,
-  },
-  countdown: {
-    fontFamily: fontFamily.regular,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-  },
+  background: { flex: 1 },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { alignItems: 'center', paddingHorizontal: 40 },
+  icon: { width: 180, height: 180, marginBottom: 24 },
+  title: { fontFamily: fontFamily.bold, fontSize: 34, color: '#FFFFFF', textAlign: 'center', marginBottom: 32 },
+  openButton: { backgroundColor: '#27d20b', borderRadius: 12, paddingVertical: 18, paddingHorizontal: 80, alignItems: 'center', justifyContent: 'center', minWidth: 260, marginBottom: 20 },
+  openButtonText: { fontFamily: fontFamily.bold, fontSize: 20, color: '#FFFFFF', letterSpacing: 1.5 },
+  countdown: { fontFamily: fontFamily.regular, fontSize: 16, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
 });
 
-// ─── Placeholder Screen ───────────────────────────────────────────────────
+// Placeholder Screen
 
 function PlaceholderScreen({ title }: { title: string }) {
   const { colors } = useTheme();
@@ -771,10 +549,6 @@ function PlaceholderScreen({ title }: { title: string }) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
+  root: { flex: 1 },
+  content: { flex: 1 },
 });

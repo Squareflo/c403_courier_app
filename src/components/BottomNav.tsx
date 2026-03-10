@@ -12,6 +12,7 @@ import {
 import {
   Car,
   Coins,
+  CreditCard,
   LayoutDashboard,
   Menu,
   MessageSquare,
@@ -19,6 +20,7 @@ import {
   Star,
   ThumbsUp,
   Users,
+  UtensilsCrossed,
   Wallet,
   X,
 } from 'lucide-react-native';
@@ -36,7 +38,9 @@ export type TabId =
   | 'reviews'
   | 'referrals'
   | 'points'
-  | 'my-account';
+  | 'catering'
+  | 'my-account'
+  | 'stripe-express';
 
 interface TabDef {
   id: TabId;
@@ -81,9 +85,19 @@ const ALL_TABS: TabDef[] = [
     icon: (color, size) => <Coins size={size} color={color} />,
   },
   {
+    id: 'catering',
+    label: 'Catering',
+    icon: (color, size) => <UtensilsCrossed size={size} color={color} />,
+  },
+  {
     id: 'my-account',
     label: 'My Profile',
     icon: (color, size) => <Settings size={size} color={color} />,
+  },
+  {
+    id: 'stripe-express',
+    label: 'Stripe Express',
+    icon: (color, size) => <CreditCard size={size} color={color} />,
   },
 ];
 
@@ -145,7 +159,7 @@ export function BottomNav({ activeTab, onTabPress, hiddenTabs = [] }: BottomNavP
           {
             backgroundColor: colors.tabBarBackground,
             borderTopColor: colors.tabBarBorder,
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8,
+            paddingBottom: Platform.OS === 'ios' ? insets.bottom : Math.max(insets.bottom, 48),
           },
         ]}
       >
@@ -230,7 +244,7 @@ export function BottomNav({ activeTab, onTabPress, hiddenTabs = [] }: BottomNavP
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const BASE_TAB_HEIGHT = Platform.OS === 'ios' ? 85 : 60;
+const BASE_TAB_HEIGHT = Platform.OS === 'ios' ? 85 : 100;
 
 const styles = StyleSheet.create({
   container: {
