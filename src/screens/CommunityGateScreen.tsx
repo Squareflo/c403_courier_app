@@ -176,68 +176,6 @@ export function CommunityGateScreen({ onCommunitySet }: CommunityGateScreenProps
       const stateFull = stateShort ? (STATE_NAMES[stateShort] || stateShort) : null;
       const country = parts.length >= 3 ? parts[2] : null;
 
-      // Try to find an existing community matching this city
-      let communityId: string | null = null;
-
-      // Exact match first
-      const { data: exactMatch } = await supabase
-        .from('community')
-        .select('id, name')
-        .ilike('name', selectedCity)
-        .limit(1);
-
-      if (exactMatch && exactMatch.length > 0) {
-        communityId = exactMatch[0].id;
-      } else {
-        // Loose match: city + state short
-        const searchName = stateShort ? `${cityName}, ${stateShort}%` : `${cityName}%`;
-        const { data: looseMatch } = await supabase
-          .from('community')
-          .select('id, name')
-          .ilike('name', searchName)
-          .limit(1);
-
-        if (looseMatch && looseMatch.length > 0) {
-          communityId = looseMatch[0].id;
-        }
-      }
-
-      // If no community found, create one
-      if (!communityId) {
-        const { data: newCommunity, error: insertError } = await supabase
-          .from('community')
-          .insert({
-            name: selectedCity,
-          })
-          .select('id')
-          .single();
-
-        if (insertError) {
-          console.error('[CommunityGate] Error creating community:', insertError);
-          // Might be a unique constraint violation — try to find it again
-          const { data: retry } = await supabase
-            .from('community')
-            .select('id')
-            .ilike('name', selectedCity)
-            .limit(1);
-          if (retry && retry.length > 0) {
-            communityId = retry[0].id;
-          } else {
-            setError('Failed to set community. Please try again.');
-            setIsSaving(false);
-            return;
-          }
-        } else if (newCommunity) {
-          communityId = newCommunity.id;
-        }
-      }
-
-      if (!communityId) {
-        setError('Failed to find or create community.');
-        setIsSaving(false);
-        return;
-      }
-
       // Look up city_id from city table
       let cityId: string | null = null;
       const { data: cityMatch } = await supabase
@@ -249,11 +187,10 @@ export function CommunityGateScreen({ onCommunitySet }: CommunityGateScreenProps
         cityId = cityMatch[0].id;
       }
 
-      // Update customer record with community_id, city_id, and community text
+      // Update customer record with city_id and community text
       const { error: updateError } = await supabase
         .from('customer')
         .update({
-          community_id: communityId,
           city_id: cityId,
           community: selectedCity,
         })
