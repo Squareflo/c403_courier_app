@@ -50,7 +50,7 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
   const [loadingQr, setLoadingQr] = useState(false);
   const [checkingQr, setCheckingQr] = useState(true);
 
-  // Referral commission from territory plan
+  // Referral commission from city plan
   const [referralCommission, setReferralCommission] = useState<string | null>(null);
 
   // Fetch courier location
@@ -71,31 +71,31 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
     })();
   }, [courier?.id]);
 
-  // Fetch referral commission from courier's territory plan
+  // Fetch referral commission from courier's city plan
   useEffect(() => {
     if (!courier?.id) return;
     (async () => {
       try {
         const { data: cust } = await supabase
           .from('customer')
-          .select('territory_id')
+          .select('city_id')
           .eq('id', courier.id)
           .maybeSingle();
 
-        if (!cust?.territory_id) return;
+        if (!cust?.city_id) return;
 
-        const { data: territory } = await supabase
-          .from('territory')
+        const { data: cityData } = await supabase
+          .from('city_resolved')
           .select('default_plan_id')
-          .eq('id', cust.territory_id)
+          .eq('id', cust.city_id)
           .maybeSingle();
 
-        if (!territory?.default_plan_id) return;
+        if (!cityData?.default_plan_id) return;
 
         const { data: plan } = await supabase
           .from('plan')
           .select('account_activation_fee, activation_fee_commission_pct')
-          .eq('id', territory.default_plan_id)
+          .eq('id', cityData.default_plan_id)
           .maybeSingle();
 
         if (plan) {

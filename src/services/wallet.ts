@@ -19,7 +19,7 @@ export async function getOrCreateCourierWallet(courierId: string): Promise<strin
     const { data, error } = await supabase.rpc('get_or_create_wallet', {
       p_wallet_type: 'customer',
       p_entity_id: courierId,
-      p_territory_id: null,
+      p_country_id: null,
     });
 
     if (error) {

@@ -7,9 +7,11 @@ import { MainLayout } from './src/screens/MainLayout';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider } from './src/contexts/AuthContext';
 import PermissionGate from './src/components/PermissionGate';
+import ForceUpdateGate from './src/components/ForceUpdateGate';
 import { supabase } from './src/lib/supabase';
 import { useTheme } from './src/contexts/ThemeContext';
 import { CourierApplicationFlow } from './src/screens/CourierApplicationFlow';
+import { CommunityGateScreen } from './src/screens/CommunityGateScreen';
 
 function ThemedStatusBar() {
   const { isDark } = useTheme();
@@ -22,7 +24,7 @@ function ThemedStatusBar() {
   );
 }
 
-type AppScreen = 'loading' | 'sign-in' | 'main' | 'application';
+type AppScreen = 'loading' | 'sign-in' | 'main' | 'application' | 'community-gate';
 
 export default function App() {
   const [appScreen, setAppScreen] = useState<AppScreen>('loading');
@@ -46,7 +48,7 @@ export default function App() {
 
         const { data } = await supabase
           .from('customer')
-          .select('roles, is_verified')
+          .select('roles, is_verified, community_id')
           .eq('id', session.user.id)
           .single();
 
@@ -60,6 +62,11 @@ export default function App() {
         const isApplicant = userRoles.includes('courier-applicant');
 
         if (isCourier) {
+          // Check if courier has a community_id — if not, show community gate
+          if (!data.community_id) {
+            setAppScreen('community-gate');
+            return;
+          }
           setAppScreen('main');
           return;
         }
@@ -91,24 +98,45 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <ThemedStatusBar />
-        <AuthProvider onSignOut={() => setAppScreen('sign-in')}>
-          {appScreen === 'main' ? (
-            <PermissionGate>
-              <MainLayout />
-            </PermissionGate>
-          ) : appScreen === 'application' ? (
-            <CourierApplicationFlow onBack={() => setAppScreen('sign-in')} />
-          ) : (
-            <SignInScreen
-              onSignInSuccess={() => setAppScreen('main')}
-              onShowApplication={() => setAppScreen('application')}
-            />
-          )}
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ForceUpdateGate>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <ThemedStatusBar />
+          <AuthProvider onSignOut={() => setAppScreen('sign-in')}>
+            {appScreen === 'main' ? (
+              <PermissionGate>
+                <MainLayout />
+              </PermissionGate>
+            ) : appScreen === 'community-gate' ? (
+              <CommunityGateScreen onCommunitySet={() => setAppScreen('main')} />
+            ) : appScreen === 'application' ? (
+              <CourierApplicationFlow onBack={() => setAppScreen('sign-in')} />
+            ) : (
+              <SignInScreen
+                onSignInSuccess={async () => {
+                  // Re-check community_id before allowing into main app
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) {
+                      const { data } = await supabase
+                        .from('customer')
+                        .select('community_id')
+                        .eq('id', session.user.id)
+                        .single();
+                      if (!data?.community_id) {
+                        setAppScreen('community-gate');
+                        return;
+                      }
+                    }
+                  } catch {}
+                  setAppScreen('main');
+                }}
+                onShowApplication={() => setAppScreen('application')}
+              />
+            )}
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ForceUpdateGate>
   );
 }

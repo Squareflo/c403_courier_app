@@ -195,7 +195,7 @@ async function getMessageTargetingContext(userId: string): Promise<MessageTarget
   try {
     const { data: customer, error } = await supabase
       .from('customer')
-      .select('roles, community_id, managed_territories')
+      .select('roles, community_id, managed_cities')
       .eq('id', userId)
       .maybeSingle();
 
@@ -204,8 +204,8 @@ async function getMessageTargetingContext(userId: string): Promise<MessageTarget
     } else if (customer) {
       roles = Array.isArray(customer.roles) ? customer.roles.filter(Boolean) : [];
       communityId = (customer.community_id as string | null) ?? null;
-      territoryIds = Array.isArray(customer.managed_territories)
-        ? customer.managed_territories.filter(Boolean)
+      territoryIds = Array.isArray(customer.managed_cities)
+        ? customer.managed_cities.filter(Boolean)
         : [];
     }
   } catch (e) {
@@ -278,7 +278,7 @@ function buildMessageRecipientOrFilter(params: {
     }
 
     for (const territoryId of ctx.territoryIds) {
-      clauses.push(`and(recipient_type.eq.territory,recipient_id.eq.${territoryId})`);
+      clauses.push(`and(recipient_type.in.(territory,city),recipient_id.eq.${territoryId})`);
     }
 
     for (const placeId of ctx.followedPlaceIds) {

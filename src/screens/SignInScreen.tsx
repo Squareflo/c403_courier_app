@@ -203,7 +203,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       const { data: customerData, error: customerError } = await supabase
         .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, territory_id, preferred_distance_unit')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
         .eq('id', data.user.id)
         .single();
 
@@ -242,7 +242,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
           current_location_latitude: customerData.current_location_latitude,
           current_location_longitude: customerData.current_location_longitude,
           points_30_days: customerData.points_30_days,
-          territory_id: customerData.territory_id,
+          city_id: customerData.city_id,
           preferred_distance_unit: customerData.preferred_distance_unit,
         });
         onShowApplication?.();
@@ -263,7 +263,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         current_location_latitude: customerData.current_location_latitude,
         current_location_longitude: customerData.current_location_longitude,
         points_30_days: customerData.points_30_days,
-        territory_id: customerData.territory_id,
+        city_id: customerData.city_id,
         preferred_distance_unit: customerData.preferred_distance_unit,
       });
 
@@ -367,7 +367,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       const { data: customerData, error: customerError } = await supabase
         .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, territory_id, preferred_distance_unit')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
         .eq('id', signInData.user.id)
         .single();
 
@@ -395,7 +395,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
           current_location_latitude: customerData.current_location_latitude,
           current_location_longitude: customerData.current_location_longitude,
           points_30_days: customerData.points_30_days,
-          territory_id: customerData.territory_id,
+          city_id: customerData.city_id,
           preferred_distance_unit: customerData.preferred_distance_unit,
         });
         onShowApplication?.();
@@ -416,7 +416,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         current_location_latitude: customerData.current_location_latitude,
         current_location_longitude: customerData.current_location_longitude,
         points_30_days: customerData.points_30_days,
-        territory_id: customerData.territory_id,
+        city_id: customerData.city_id,
         preferred_distance_unit: customerData.preferred_distance_unit,
       });
 

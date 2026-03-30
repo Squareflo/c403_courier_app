@@ -15,8 +15,10 @@ export interface CourierProfile {
   current_location_latitude?: number | null;
   current_location_longitude?: number | null;
   points_30_days?: number | null;
-  territory_id?: string | null;
+  city_id?: string | null;
   preferred_distance_unit?: string | null;
+  stripe_connect_status?: string | null;
+  stripe_account_id?: string | null;
 }
 
 interface AuthContextValue {
@@ -34,7 +36,7 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 const COURIER_SELECT =
-  'id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, territory_id, preferred_distance_unit';
+  'id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit, stripe_connect_status, stripe_account_id';
 
 export function AuthProvider({
   children,

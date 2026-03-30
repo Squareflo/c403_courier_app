@@ -76,6 +76,7 @@ interface PlaceData {
   total_reviews: number | null;
   phone_number: string | null;
   courier_pickup_instructions: string | null;
+  city_id: string | null;
 }
 
 interface CustomerData {
@@ -318,6 +319,61 @@ export function ActiveDeliveryScreen({
 
   // —— Play "You Got Paid" sound ——————————————————————————————————
 
+  // —— Proximity Check Helper ——————————————————————————————————————
+  const checkProximity = async (
+    targetLat: number,
+    targetLon: number,
+    locationLabel: string,
+  ): Promise<boolean> => {
+    try {
+      let courierLat: number | null = null;
+      let courierLon: number | null = null;
+      try {
+        const loc = await getCurrentLocation();
+        if (loc) {
+          courierLat = loc.coords.latitude;
+          courierLon = loc.coords.longitude;
+        }
+      } catch (locErr) {
+        console.warn('[ActiveDelivery] GPS unavailable for proximity check:', locErr);
+      }
+      if (courierLat === null && courier?.current_location_latitude && courier?.current_location_longitude) {
+        courierLat = courier.current_location_latitude;
+        courierLon = courier.current_location_longitude;
+      }
+      if (courierLat === null || courierLon === null) {
+        Alert.alert('Location Unavailable', 'Unable to determine your current location. Please make sure location services are enabled and try again.');
+        return false;
+      }
+      let radiusKm = 0.1;
+      if (place?.city_id) {
+        try {
+          const { data: cityData, error: cityError } = await supabase
+            .from('city_resolved')
+            .select('courier_arrival_radius_km')
+            .eq('id', place.city_id)
+            .single();
+          if (!cityError && cityData?.courier_arrival_radius_km != null) {
+            radiusKm = Number(cityData.courier_arrival_radius_km);
+          }
+        } catch (err) {
+          console.warn('[ActiveDelivery] Could not fetch city radius, using default:', err);
+        }
+      }
+      const distKm = calculateDistanceKm(courierLat, courierLon, targetLat, targetLon);
+      if (distKm <= radiusKm) return true;
+      const distMeters = Math.round(distKm * 1000);
+      const radiusMeters = Math.round(radiusKm * 1000);
+      Alert.alert('Too Far Away', `You need to be within ${radiusMeters}m of the ${locationLabel} to proceed. You are currently about ${distMeters}m away.`);
+      return false;
+    } catch (err) {
+      console.error('[ActiveDelivery] Proximity check error:', err);
+      Alert.alert('Error', 'Could not verify your location. Please try again.');
+      return false;
+    }
+  };
+
+
   const playYouGotPaidSound = useCallback(async () => {
     try {
       const { sound } = await Audio.Sound.createAsync(
@@ -365,7 +421,7 @@ export function ActiveDeliveryScreen({
            place:place_id (
              id, name, address_line_1, city, state,
              profile_picture_url, photos, rating, average_rating,
-             total_reviews, phone_number, courier_pickup_instructions
+             total_reviews, phone_number, courier_pickup_instructions, city_id
            ),
            customer:customer_id (
              id, first_name, last_name, phone_number, profile_picture_url
@@ -632,10 +688,14 @@ export function ActiveDeliveryScreen({
 
   const handleArrivedAtPickup = async () => {
     if (!delivery) return;
+    if (!delivery.pickup_latitude || !delivery.pickup_longitude) return;
     setUpdatingStatus(true);
     setError(null);
 
     try {
+      const withinRadius = await checkProximity(delivery.pickup_latitude, delivery.pickup_longitude, 'pickup location');
+      if (!withinRadius) { setUpdatingStatus(false); return; }
+
       const { error: statusError } = await supabase.functions.invoke('update-delivery-status', {
         body: {
           delivery_request_id: deliveryRequestId,
@@ -666,10 +726,14 @@ export function ActiveDeliveryScreen({
 
   const handleReceivedOrder = async () => {
     if (!delivery) return;
+    if (!delivery.pickup_latitude || !delivery.pickup_longitude) return;
     setUpdatingStatus(true);
     setError(null);
 
     try {
+      const withinRadius = await checkProximity(delivery.pickup_latitude, delivery.pickup_longitude, 'pickup location');
+      if (!withinRadius) { setUpdatingStatus(false); return; }
+
       const { error: statusError } = await supabase.functions.invoke('update-delivery-status', {
         body: {
           delivery_request_id: deliveryRequestId,
@@ -710,10 +774,14 @@ export function ActiveDeliveryScreen({
 
   const handleArrivedAtDropoff = async () => {
     if (!delivery) return;
+    if (!delivery.dropoff_latitude || !delivery.dropoff_longitude) return;
     setUpdatingStatus(true);
     setError(null);
 
     try {
+      const withinRadius = await checkProximity(delivery.dropoff_latitude, delivery.dropoff_longitude, 'drop-off location');
+      if (!withinRadius) { setUpdatingStatus(false); return; }
+
       const { error: statusError } = await supabase.functions.invoke('update-delivery-status', {
         body: {
           delivery_request_id: deliveryRequestId,

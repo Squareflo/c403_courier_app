@@ -297,7 +297,7 @@ export async function updateCourierLocationInDB(
   }
 }
 
-/** Toggle courier online/offline status, refresh 30-day points and update territory when going online */
+/** Toggle courier online/offline status, refresh 30-day points and update city when going online */
 export async function updateCourierOnlineStatus(courierId: string, isOnline: boolean) {
   const { error } = await supabase
     .from('customer')
@@ -311,7 +311,7 @@ export async function updateCourierOnlineStatus(courierId: string, isOnline: boo
     throw error;
   }
 
-  // When going online, recalculate the courier's 30-day points and update territory
+  // When going online, recalculate the courier's 30-day points and update city
   if (isOnline) {
     try {
       const { data, error: rpcError } = await supabase.rpc('update_courier_30_day_points', {
@@ -328,17 +328,17 @@ export async function updateCourierOnlineStatus(courierId: string, isOnline: boo
     }
 
     try {
-      const { data: territoryId, error: terError } = await supabase.rpc('update_courier_territory', {
+      const { data: cityId, error: cityError } = await supabase.rpc('update_courier_city', {
         courier_id_param: courierId,
       });
-      if (terError) {
-        console.error('[API] update_courier_territory error:', terError);
+      if (cityError) {
+        console.error('[API] update_courier_city error:', cityError);
       } else {
-        console.log(`[API] Courier territory updated: ${territoryId}`);
+        console.log(`[API] Courier city updated: ${cityId}`);
       }
     } catch (err) {
-      // Non-blocking — don't prevent going online if territory update fails
-      console.error('[API] Failed to update territory:', err);
+      // Non-blocking — don't prevent going online if city update fails
+      console.error('[API] Failed to update city:', err);
     }
   }
 }

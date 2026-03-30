@@ -42,22 +42,22 @@ export function OpenOffersSection({ offers, onOfferPress, flush = false }: OpenO
   // ── Fetch territory settings ──────────────────────────────────────────
 
   const loadTerritorySettings = useCallback(async () => {
-    if (!courier?.territory_id) return;
+    if (!courier?.city_id) return;
 
     try {
       const { data, error } = await supabase
-        .from('territory')
+        .from('city_resolved')
         .select('max_active_deliveries_per_courier, courier_must_be_en_route_to_accept_another_delivery')
-        .eq('id', courier.territory_id)
+        .eq('id', courier.city_id)
         .single();
 
       if (!error && data) {
         setTerritorySettings(data as TerritorySettings);
       }
     } catch (err) {
-      console.error('[OpenOffersSection] Error loading territory settings:', err);
+      console.error('[OpenOffersSection] Error loading city settings:', err);
     }
-  }, [courier?.territory_id]);
+  }, [courier?.city_id]);
 
   // ── Count active deliveries + check en_route status ───────────────────
 

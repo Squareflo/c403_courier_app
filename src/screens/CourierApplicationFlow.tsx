@@ -94,7 +94,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
       if (!user) return;
       const { data } = await supabase
         .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, territory_id, preferred_distance_unit, dialing_code_only, phone_number_only')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit, dialing_code_only, phone_number_only')
         .eq('id', user.id)
         .single();
       if (data) {
@@ -112,7 +112,7 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
           current_location_latitude: data.current_location_latitude,
           current_location_longitude: data.current_location_longitude,
           points_30_days: data.points_30_days,
-          territory_id: data.territory_id,
+          city_id: data.city_id,
           preferred_distance_unit: data.preferred_distance_unit,
         });
       }
