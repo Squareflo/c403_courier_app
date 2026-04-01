@@ -369,7 +369,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         const loc = await getCurrentLocation();
         if (loc) {
           await supabase
-            .from('customer')
+            .from('courier')
             .update({
               current_location_latitude: loc.latitude,
               current_location_longitude: loc.longitude,

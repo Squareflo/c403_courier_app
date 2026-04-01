@@ -92,11 +92,24 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
-        .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit, dialing_code_only, phone_number_only')
-        .eq('id', user.id)
-        .single();
+
+      // Fetch customer data and courier-specific data in parallel
+      const [customerResult, courierResult] = await Promise.all([
+        supabase
+          .from('customer')
+          .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, city_id, preferred_distance_unit, dialing_code_only, phone_number_only')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('courier')
+          .select('id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type')
+          .eq('id', user.id)
+          .single(),
+      ]);
+
+      const data = customerResult.data;
+      const courierData = courierResult.data;
+
       if (data) {
         setCourier({
           id: data.id,
@@ -107,13 +120,13 @@ export function CourierApplicationFlow({ onBack }: CourierApplicationFlowProps) 
           phone_number: data.phone_number,
           roles: Array.isArray(data.roles) ? data.roles : [],
           is_verified: data.is_verified,
-
-          is_online: data.is_online || false,
-          current_location_latitude: data.current_location_latitude,
-          current_location_longitude: data.current_location_longitude,
-          points_30_days: data.points_30_days,
           city_id: data.city_id,
           preferred_distance_unit: data.preferred_distance_unit,
+
+          is_online: courierData?.is_online ?? false,
+          current_location_latitude: courierData?.current_location_latitude ?? null,
+          current_location_longitude: courierData?.current_location_longitude ?? null,
+          points_30_days: courierData?.points_30_days ?? null,
         });
       }
     })();

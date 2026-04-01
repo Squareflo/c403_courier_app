@@ -460,7 +460,7 @@ export function OpenOfferScreen({
       // 4. Increment courier's accepted count
       const currentAccepted = courier.total_delivery_requests_accepted || 0;
       await supabase
-        .from('customer')
+        .from('courier')
         .update({ total_delivery_requests_accepted: currentAccepted + 1 })
         .eq('id', courier.id);
 
@@ -617,7 +617,7 @@ export function OpenOfferScreen({
       // ====================================================================
       const currentRejected = courier.total_delivery_requests_rejected || 0;
       await supabase
-        .from('customer')
+        .from('courier')
         .update({ total_delivery_requests_rejected: currentRejected + 1 })
         .eq('id', courier.id);
 

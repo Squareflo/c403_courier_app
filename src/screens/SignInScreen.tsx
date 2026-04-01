@@ -254,11 +254,23 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         return;
       }
 
-      const { data: customerData, error: customerError } = await supabase
-        .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
-        .eq('id', data.user.id)
-        .single();
+      // Fetch customer data and courier-specific data in parallel
+      const [customerResult, courierResult] = await Promise.all([
+        supabase
+          .from('customer')
+          .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, city_id, preferred_distance_unit')
+          .eq('id', data.user.id)
+          .single(),
+        supabase
+          .from('courier')
+          .select('id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type')
+          .eq('id', data.user.id)
+          .single(),
+      ]);
+
+      const customerData = customerResult.data;
+      const customerError = customerResult.error;
+      const courierData = courierResult.data;
 
       if (customerError || !customerData) {
         setErrors({ general: 'Account not found. Please contact support.' });
@@ -280,29 +292,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const userRoles = Array.isArray(customerData.roles) ? (customerData.roles as string[]) : [];
       const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
-      if (!isCourier) {
-        setCourier({
-          id: customerData.id,
-          first_name: customerData.first_name || '',
-          last_name: customerData.last_name || '',
-          email: customerData.email || '',
-          profile_picture_url: customerData.profile_picture_url,
-          phone_number: customerData.phone_number,
-          roles: userRoles,
-          is_verified: customerData.is_verified,
-
-          is_online: customerData.is_online || false,
-          current_location_latitude: customerData.current_location_latitude,
-          current_location_longitude: customerData.current_location_longitude,
-          points_30_days: customerData.points_30_days,
-          city_id: customerData.city_id,
-          preferred_distance_unit: customerData.preferred_distance_unit,
-        });
-        onShowApplication?.();
-        return;
-      }
-
-      setCourier({
+      const mergedProfile = {
         id: customerData.id,
         first_name: customerData.first_name || '',
         last_name: customerData.last_name || '',
@@ -311,14 +301,27 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         phone_number: customerData.phone_number,
         roles: userRoles,
         is_verified: customerData.is_verified,
-
-        is_online: customerData.is_online || false,
-        current_location_latitude: customerData.current_location_latitude,
-        current_location_longitude: customerData.current_location_longitude,
-        points_30_days: customerData.points_30_days,
         city_id: customerData.city_id,
         preferred_distance_unit: customerData.preferred_distance_unit,
-      });
+
+        is_online: courierData?.is_online ?? false,
+        current_location_latitude: courierData?.current_location_latitude ?? null,
+        current_location_longitude: courierData?.current_location_longitude ?? null,
+        points_30_days: courierData?.points_30_days ?? null,
+        total_delivery_requests_accepted: courierData?.total_delivery_requests_accepted ?? null,
+        total_delivery_requests_rejected: courierData?.total_delivery_requests_rejected ?? null,
+        total_delivery_requests_viewed: courierData?.total_delivery_requests_viewed ?? null,
+        account_status: courierData?.account_status ?? null,
+        vehicle_type: courierData?.vehicle_type ?? null,
+      };
+
+      if (!isCourier) {
+        setCourier(mergedProfile);
+        onShowApplication?.();
+        return;
+      }
+
+      setCourier(mergedProfile);
 
       onSignInSuccess();
     } catch (err: any) {
@@ -419,11 +422,23 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         return;
       }
 
-      const { data: customerData, error: customerError } = await supabase
-        .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
-        .eq('id', signInData.user.id)
-        .single();
+      // Fetch customer data and courier-specific data in parallel
+      const [customerResult2, courierResult2] = await Promise.all([
+        supabase
+          .from('customer')
+          .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, city_id, preferred_distance_unit')
+          .eq('id', signInData.user.id)
+          .single(),
+        supabase
+          .from('courier')
+          .select('id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type')
+          .eq('id', signInData.user.id)
+          .single(),
+      ]);
+
+      const customerData = customerResult2.data;
+      const customerError = customerResult2.error;
+      const courierData2 = courierResult2.data;
 
       if (customerError || !customerData || !customerData.is_verified) {
         setError('Email verified! Please sign in.');
@@ -434,29 +449,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const userRoles = Array.isArray(customerData.roles) ? (customerData.roles as string[]) : [];
       const isCourier = userRoles.some(r => ALLOWED_COURIER_ROLES.includes(r as any));
 
-      if (!isCourier) {
-        setCourier({
-          id: customerData.id,
-          first_name: customerData.first_name || '',
-          last_name: customerData.last_name || '',
-          email: customerData.email || '',
-          profile_picture_url: customerData.profile_picture_url,
-          phone_number: customerData.phone_number,
-          roles: userRoles,
-          is_verified: customerData.is_verified,
-
-          is_online: customerData.is_online || false,
-          current_location_latitude: customerData.current_location_latitude,
-          current_location_longitude: customerData.current_location_longitude,
-          points_30_days: customerData.points_30_days,
-          city_id: customerData.city_id,
-          preferred_distance_unit: customerData.preferred_distance_unit,
-        });
-        onShowApplication?.();
-        return;
-      }
-
-      setCourier({
+      const mergedProfile2 = {
         id: customerData.id,
         first_name: customerData.first_name || '',
         last_name: customerData.last_name || '',
@@ -465,14 +458,27 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         phone_number: customerData.phone_number,
         roles: userRoles,
         is_verified: customerData.is_verified,
-
-        is_online: customerData.is_online || false,
-        current_location_latitude: customerData.current_location_latitude,
-        current_location_longitude: customerData.current_location_longitude,
-        points_30_days: customerData.points_30_days,
         city_id: customerData.city_id,
         preferred_distance_unit: customerData.preferred_distance_unit,
-      });
+
+        is_online: courierData2?.is_online ?? false,
+        current_location_latitude: courierData2?.current_location_latitude ?? null,
+        current_location_longitude: courierData2?.current_location_longitude ?? null,
+        points_30_days: courierData2?.points_30_days ?? null,
+        total_delivery_requests_accepted: courierData2?.total_delivery_requests_accepted ?? null,
+        total_delivery_requests_rejected: courierData2?.total_delivery_requests_rejected ?? null,
+        total_delivery_requests_viewed: courierData2?.total_delivery_requests_viewed ?? null,
+        account_status: courierData2?.account_status ?? null,
+        vehicle_type: courierData2?.vehicle_type ?? null,
+      };
+
+      if (!isCourier) {
+        setCourier(mergedProfile2);
+        onShowApplication?.();
+        return;
+      }
+
+      setCourier(mergedProfile2);
 
       onSignInSuccess();
     } catch (err: any) {

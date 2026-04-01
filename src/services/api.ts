@@ -284,7 +284,7 @@ export async function updateCourierLocationInDB(
   longitude: number
 ) {
   const { error } = await supabase
-    .from('customer')
+    .from('courier')
     .update({
       current_location_latitude: latitude,
       current_location_longitude: longitude,
@@ -300,7 +300,7 @@ export async function updateCourierLocationInDB(
 /** Toggle courier online/offline status, refresh 30-day points and update city when going online */
 export async function updateCourierOnlineStatus(courierId: string, isOnline: boolean) {
   const { error } = await supabase
-    .from('customer')
+    .from('courier')
     .update({
       is_online: isOnline,
     })
@@ -343,19 +343,22 @@ export async function updateCourierOnlineStatus(courierId: string, isOnline: boo
   }
 }
 
-/** Get courier profile */
+/** Get courier profile (merged from customer + courier tables) */
 export async function getCourierProfile(courierId: string) {
-  const { data, error } = await supabase
-    .from('customer')
-    .select('*')
-    .eq('id', courierId)
-    .single();
+  const [customerResult, courierResult] = await Promise.all([
+    supabase.from('customer').select('*').eq('id', courierId).single(),
+    supabase.from('courier').select('*').eq('id', courierId).single(),
+  ]);
 
-  if (error) {
-    console.error('[API] getCourierProfile error:', error);
-    throw error;
+  if (customerResult.error) {
+    console.error('[API] getCourierProfile customer error:', customerResult.error);
+    throw customerResult.error;
   }
-  return data;
+
+  return {
+    ...customerResult.data,
+    ...(courierResult.data || {}),
+  };
 }
 
 /** Update courier stats (accepted/rejected counts) */
@@ -364,7 +367,7 @@ export async function updateCourierStats(
   updates: Record<string, any>
 ) {
   const { error } = await supabase
-    .from('customer')
+    .from('courier')
     .update(updates)
     .eq('id', courierId);
 

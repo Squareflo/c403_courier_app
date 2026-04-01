@@ -116,7 +116,7 @@ export function MainLayout() {
     const checkOnlineStatus = async () => {
       try {
         const { data, error } = await supabase
-          .from('customer')
+          .from('courier')
           .select('is_online')
           .eq('id', courier.id)
           .single();

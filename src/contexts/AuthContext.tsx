@@ -18,6 +18,11 @@ export interface CourierProfile {
   preferred_distance_unit?: string | null;
   stripe_connect_status?: string | null;
   stripe_account_id?: string | null;
+  total_delivery_requests_accepted?: number | null;
+  total_delivery_requests_rejected?: number | null;
+  total_delivery_requests_viewed?: number | null;
+  account_status?: string | null;
+  vehicle_type?: string | null;
 }
 
 interface AuthContextValue {
@@ -34,8 +39,13 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
 });
 
-const COURIER_SELECT =
-  'id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit, stripe_connect_status, stripe_account_id';
+// Fields from customer table (non-courier-specific)
+const CUSTOMER_SELECT =
+  'id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, city_id, preferred_distance_unit, stripe_connect_status, stripe_account_id';
+
+// Fields from courier table (courier-specific)
+const COURIER_TABLE_SELECT =
+  'id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type';
 
 export function AuthProvider({
   children,
@@ -53,14 +63,27 @@ export function AuthProvider({
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
 
-        const { data, error } = await supabase
-          .from('customer')
-          .select(COURIER_SELECT)
-          .eq('id', session.user.id)
-          .single();
+        // Fetch customer data and courier data in parallel
+        const [customerResult, courierResult] = await Promise.all([
+          supabase.from('customer').select(CUSTOMER_SELECT).eq('id', session.user.id).single(),
+          supabase.from('courier').select(COURIER_TABLE_SELECT).eq('id', session.user.id).single(),
+        ]);
 
-        if (!error && data) {
-          setCourier(data as CourierProfile);
+        if (!customerResult.error && customerResult.data) {
+          const merged = {
+            ...customerResult.data,
+            // Overlay courier-specific fields (fallback to defaults if courier row missing)
+            is_online: courierResult.data?.is_online ?? false,
+            current_location_latitude: courierResult.data?.current_location_latitude ?? null,
+            current_location_longitude: courierResult.data?.current_location_longitude ?? null,
+            points_30_days: courierResult.data?.points_30_days ?? null,
+            total_delivery_requests_accepted: courierResult.data?.total_delivery_requests_accepted ?? null,
+            total_delivery_requests_rejected: courierResult.data?.total_delivery_requests_rejected ?? null,
+            total_delivery_requests_viewed: courierResult.data?.total_delivery_requests_viewed ?? null,
+            account_status: courierResult.data?.account_status ?? null,
+            vehicle_type: courierResult.data?.vehicle_type ?? null,
+          };
+          setCourier(merged as CourierProfile);
         }
       } catch (err) {
         console.error('Error loading courier from session:', err);
@@ -77,14 +100,26 @@ export function AuthProvider({
       } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      const { data, error } = await supabase
-        .from('customer')
-        .select(COURIER_SELECT)
-        .eq('id', session.user.id)
-        .single();
+      // Fetch customer data and courier data in parallel
+      const [customerResult, courierResult] = await Promise.all([
+        supabase.from('customer').select(CUSTOMER_SELECT).eq('id', session.user.id).single(),
+        supabase.from('courier').select(COURIER_TABLE_SELECT).eq('id', session.user.id).single(),
+      ]);
 
-      if (!error && data) {
-        setCourier(data as CourierProfile);
+      if (!customerResult.error && customerResult.data) {
+        const merged = {
+          ...customerResult.data,
+          is_online: courierResult.data?.is_online ?? false,
+          current_location_latitude: courierResult.data?.current_location_latitude ?? null,
+          current_location_longitude: courierResult.data?.current_location_longitude ?? null,
+          points_30_days: courierResult.data?.points_30_days ?? null,
+          total_delivery_requests_accepted: courierResult.data?.total_delivery_requests_accepted ?? null,
+          total_delivery_requests_rejected: courierResult.data?.total_delivery_requests_rejected ?? null,
+          total_delivery_requests_viewed: courierResult.data?.total_delivery_requests_viewed ?? null,
+          account_status: courierResult.data?.account_status ?? null,
+          vehicle_type: courierResult.data?.vehicle_type ?? null,
+        };
+        setCourier(merged as CourierProfile);
       }
     } catch (err) {
       console.error('Error refreshing courier:', err);
