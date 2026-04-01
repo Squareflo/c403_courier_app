@@ -109,38 +109,25 @@ export function DirectDepositScreen({ onBack, onContinue }: DirectDepositScreenP
         return;
       }
 
-      // No record found — gather data from customer + community
+      // No record found — gather data from customer's city
       let city = '';
       let state = '';
       let country = 'Canada';
 
-      if (courier.community) {
-        // Parse "Regina, SK" or "Regina, Saskatchewan, Canada"
-        const parts = courier.community.split(',').map((s: string) => s.trim());
-        if (parts.length >= 1) city = parts[0];
-        if (parts.length >= 2) state = parts[1];
-        if (parts.length >= 3) country = parts[2];
-      }
-
-      // Also try community table for better data
-      const { data: custData } = await supabase
-        .from('customer')
-        .select('community_id')
-        .eq('id', courier.id)
-        .single();
-
-      if (custData?.community_id) {
-        const { data: comm } = await supabase
-          .from('community')
-          .select('city, state, state_short, country')
-          .eq('id', custData.community_id)
+      if (courier.city_id) {
+        const { data: cityData } = await supabase
+          .from('city')
+          .select('name, state_province:state_province_id(name, short_name, country:country_id(name))')
+          .eq('id', courier.city_id)
           .single();
 
-        if (comm) {
-          if (comm.city) city = comm.city;
-          if (comm.state) state = comm.state;
-          else if (comm.state_short) state = comm.state_short;
-          if (comm.country) country = comm.country;
+        if (cityData) {
+          city = cityData.name || '';
+          const sp = cityData.state_province as any;
+          if (sp) {
+            state = sp.short_name || sp.name || '';
+            if (sp.country?.name) country = sp.country.name;
+          }
         }
       }
 

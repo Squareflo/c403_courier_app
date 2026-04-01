@@ -129,6 +129,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
   const [courierReviews, setCourierReviews] = useState<any[]>([]);
 
   const [freshProfilePic, setFreshProfilePic] = useState<string | null>(null);
+  const [cityProvince, setCityProvince] = useState('');
 
   // In application mode, fetch fresh profile picture from DB since auth context may be stale
   useEffect(() => {
@@ -143,16 +144,36 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     })();
   }, [isApplicationMode, courier?.id]);
 
-  // Profile data — use applicationData for name/community if in application mode
+  // Fetch city name for display
+  useEffect(() => {
+    const cityId = courier?.city_id;
+    if (!cityId) {
+      // Fallback to application data community if in application mode
+      if (isApplicationMode && applicationData?.community) {
+        const raw = applicationData.community;
+        setCityProvince(raw.includes(',') ? raw.split(',').slice(0, 2).map((s: string) => s.trim()).join(', ') : raw);
+      }
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('city')
+        .select('name, state_province:state_province_id(short_name)')
+        .eq('id', cityId)
+        .single();
+      if (data) {
+        const sp = data.state_province as any;
+        setCityProvince(sp?.short_name ? `${data.name}, ${sp.short_name}` : data.name || '');
+      }
+    })();
+  }, [courier?.city_id, isApplicationMode, applicationData?.community]);
+
+  // Profile data
   const profileImage = (isApplicationMode ? freshProfilePic : null) || courier?.profile_picture_url || null;
   const firstName = isApplicationMode ? (applicationData.first_name || 'Courier') : (courier?.first_name || 'Courier');
   const lastName = isApplicationMode ? (applicationData.last_name || '') : (courier?.last_name || '');
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
   const distUnit = courier?.preferred_distance_unit;
-  const communityRaw = isApplicationMode ? (applicationData.community || '') : (courier?.community || '');
-  const cityProvince = communityRaw.includes(',')
-    ? communityRaw.split(',').slice(0, 2).map((s: string) => s.trim()).join(', ')
-    : communityRaw;
 
   // Computed from real courier_review data
   const courierReviewCount = courierReviews.length;

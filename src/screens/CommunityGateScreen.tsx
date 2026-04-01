@@ -192,7 +192,6 @@ export function CommunityGateScreen({ onCommunitySet }: CommunityGateScreenProps
         .from('customer')
         .update({
           city_id: cityId,
-          community: selectedCity,
         })
         .eq('id', courier.id);
 

@@ -311,7 +311,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         phone_number: customerData.phone_number,
         roles: userRoles,
         is_verified: customerData.is_verified,
-        community: customerData.community,
+
         is_online: customerData.is_online || false,
         current_location_latitude: customerData.current_location_latitude,
         current_location_longitude: customerData.current_location_longitude,
@@ -465,7 +465,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
         phone_number: customerData.phone_number,
         roles: userRoles,
         is_verified: customerData.is_verified,
-        community: customerData.community,
+
         is_online: customerData.is_online || false,
         current_location_latitude: customerData.current_location_latitude,
         current_location_longitude: customerData.current_location_longitude,
