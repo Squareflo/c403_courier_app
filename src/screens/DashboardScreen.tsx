@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, LogOut, Moon, Star, Sun, User, X } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, Clock, LogOut, Moon, Star, Sun, User, X } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
@@ -111,6 +111,8 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>('last_30');
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
   const [isGoingOnline, setIsGoingOnline] = useState(false);
+  const [showGoOnlineModal, setShowGoOnlineModal] = useState(false);
+  const [minSessionMinutes, setMinSessionMinutes] = useState(60);
 
   // Stats
   const [stats, setStats] = useState({
@@ -144,11 +146,10 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     })();
   }, [isApplicationMode, courier?.id]);
 
-  // Fetch city name for display
+  // Fetch city name and min session duration for display
   useEffect(() => {
     const cityId = courier?.city_id;
     if (!cityId) {
-      // Fallback to application data community if in application mode
       if (isApplicationMode && applicationData?.community) {
         const raw = applicationData.community;
         setCityProvince(raw.includes(',') ? raw.split(',').slice(0, 2).map((s: string) => s.trim()).join(', ') : raw);
@@ -158,12 +159,15 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     (async () => {
       const { data } = await supabase
         .from('city')
-        .select('name, state_province:state_province_id(code)')
+        .select('name, min_courier_session_minutes, state_province:state_province_id(code)')
         .eq('id', cityId)
         .single();
       if (data) {
         const sp = data.state_province as any;
         setCityProvince(sp?.code ? `${data.name}, ${sp.code}` : data.name || '');
+        if (data.min_courier_session_minutes) {
+          setMinSessionMinutes(data.min_courier_session_minutes);
+        }
       }
     })();
   }, [courier?.city_id, isApplicationMode, applicationData?.community]);
@@ -238,7 +242,13 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
 
   // ── Go Online ───────────────────────────────────────────────────────────
 
-  const handleSlideToOnline = async () => {
+  const handleSlideToOnline = () => {
+    if (!courier?.id || isGoingOnline) return;
+    setShowGoOnlineModal(true);
+  };
+
+  const confirmGoOnline = async () => {
+    setShowGoOnlineModal(false);
     if (!courier?.id || isGoingOnline) return;
     setIsGoingOnline(true);
     try {
@@ -558,11 +568,147 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
           </View>
         </Modal>
       )}
+
+      {/* ── Go Online Confirmation Modal ── */}
+      <Modal
+        visible={showGoOnlineModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoOnlineModal(false)}
+      >
+        <View style={goOnlineModalStyles.overlay}>
+          <View style={[goOnlineModalStyles.container, { backgroundColor: colors.card }]}>
+            <View style={goOnlineModalStyles.iconRow}>
+              <View style={goOnlineModalStyles.iconCircle}>
+                <Clock size={28} color="#fff" />
+              </View>
+            </View>
+
+            <Text style={[goOnlineModalStyles.title, { color: colors.text }]}>
+              Ready to go on standby?
+            </Text>
+
+            <Text style={[goOnlineModalStyles.body, { color: colors.textSecondary }]}>
+              By going online you're committing to be available for at least{' '}
+              <Text style={{ fontFamily: fontFamily.bold, color: colors.text }}>
+                {minSessionMinutes} minutes
+              </Text>
+              . Once online, you won't be able to go offline until this time has passed.
+            </Text>
+
+            <Text style={[goOnlineModalStyles.body, { color: colors.textSecondary, marginTop: 8 }]}>
+              You're free to accept or reject any offers during this time. However, each rejection during a session carries an increasing point penalty.
+            </Text>
+
+            <View style={[goOnlineModalStyles.note, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5' }]}>
+              <AlertTriangle size={16} color={colors.textMuted} />
+              <Text style={[goOnlineModalStyles.noteText, { color: colors.textMuted }]}>
+                We cannot guarantee you'll receive offers during this time.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={goOnlineModalStyles.confirmButton}
+              onPress={confirmGoOnline}
+              activeOpacity={0.8}
+            >
+              <Text style={goOnlineModalStyles.confirmButtonText}>
+                Yes, Go Online
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={goOnlineModalStyles.cancelButton}
+              onPress={() => setShowGoOnlineModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={[goOnlineModalStyles.cancelButtonText, { color: colors.textSecondary }]}>
+                Not right now
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
+
+const goOnlineModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+  },
+  iconRow: {
+    marginBottom: 16,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#27d20b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  body: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  note: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+  noteText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    flex: 1,
+  },
+  confirmButton: {
+    backgroundColor: '#27d20b',
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  confirmButtonText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 16,
+    color: '#fff',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  cancelButtonText: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+  },
+});
 
 const styles = StyleSheet.create({
   screen: {

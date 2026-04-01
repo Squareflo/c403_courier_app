@@ -45,7 +45,7 @@ const CUSTOMER_SELECT =
 
 // Fields from courier table (courier-specific)
 const COURIER_TABLE_SELECT =
-  'id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type';
+  'id, is_online, current_location_latitude, current_location_longitude, points_30_days, total_delivery_requests_accepted, total_delivery_requests_rejected, total_delivery_requests_viewed, account_status, vehicle_type, went_online_at, session_rejections, city_id';
 
 export function AuthProvider({
   children,
@@ -82,6 +82,8 @@ export function AuthProvider({
             total_delivery_requests_viewed: courierResult.data?.total_delivery_requests_viewed ?? null,
             account_status: courierResult.data?.account_status ?? null,
             vehicle_type: courierResult.data?.vehicle_type ?? null,
+            went_online_at: courierResult.data?.went_online_at ?? null,
+            session_rejections: courierResult.data?.session_rejections ?? 0,
           };
           setCourier(merged as CourierProfile);
         }
@@ -118,6 +120,8 @@ export function AuthProvider({
           total_delivery_requests_viewed: courierResult.data?.total_delivery_requests_viewed ?? null,
           account_status: courierResult.data?.account_status ?? null,
           vehicle_type: courierResult.data?.vehicle_type ?? null,
+          went_online_at: courierResult.data?.went_online_at ?? null,
+          session_rejections: courierResult.data?.session_rejections ?? 0,
         };
         setCourier(merged as CourierProfile);
       }

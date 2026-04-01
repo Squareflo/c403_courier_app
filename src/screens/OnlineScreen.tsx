@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Moon, Sun, User, ZapOff } from 'lucide-react-native';
+import { AlertTriangle, Clock, Moon, Sun, User, ZapOff } from 'lucide-react-native';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -121,6 +121,9 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [showSessionLockModal, setShowSessionLockModal] = useState(false);
+  const [sessionMinutesRemaining, setSessionMinutesRemaining] = useState(0);
+  const [minSessionMinutes, setMinSessionMinutes] = useState(60);
 
   // Stats
   const [stats, setStats] = useState<TodayStats>({
@@ -146,6 +149,22 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
   // Location tracking ref
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch min session minutes from city settings
+  useEffect(() => {
+    const fetchMinSession = async () => {
+      if (!courier?.city_id) return;
+      const { data } = await supabase
+        .from('city')
+        .select('min_courier_session_minutes')
+        .eq('id', courier.city_id)
+        .single();
+      if (data?.min_courier_session_minutes) {
+        setMinSessionMinutes(data.min_courier_session_minutes);
+      }
+    };
+    fetchMinSession();
+  }, [courier?.city_id]);
 
   // Sound ref for open offer notification
   const openOfferSoundRef = useRef<Audio.Sound | null>(null);
@@ -449,6 +468,19 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const handleGoOffline = async () => {
     if (hasActiveDeliveries || !courier?.id) return;
 
+    // Enforce minimum session duration
+    if (courier.went_online_at) {
+      const onlineSince = new Date(courier.went_online_at).getTime();
+      const now = Date.now();
+      const elapsedMinutes = (now - onlineSince) / 60000;
+      if (elapsedMinutes < minSessionMinutes) {
+        const remaining = Math.ceil(minSessionMinutes - elapsedMinutes);
+        setSessionMinutesRemaining(remaining);
+        setShowSessionLockModal(true);
+        return;
+      }
+    }
+
     try {
       await updateCourierOnlineStatus(courier.id, false);
       await refreshCourier();
@@ -688,7 +720,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── Can't go offline modal ── */}
+      {/* ── Can't go offline modal (active deliveries) ── */}
       <Modal
         visible={showOfflineModal}
         transparent
@@ -707,6 +739,41 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
               activeOpacity={0.7}
             >
               <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Session lock modal (min session not met) ── */}
+      <Modal
+        visible={showSessionLockModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSessionLockModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.modalBackground }]}>
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center' }}>
+                <Clock size={28} color="#D97706" />
+              </View>
+            </View>
+            <Text style={[styles.modalTitle, { color: textColor }]}>Session Still Active</Text>
+            <Text style={[styles.modalText, { color: textSecColor, textAlign: 'center' }]}>
+              You committed to being available for at least {minSessionMinutes} minutes when you went online.
+            </Text>
+            <Text style={[styles.modalText, { color: textColor, fontFamily: fontFamily.semiBold, textAlign: 'center', marginTop: 4 }]}>
+              {sessionMinutesRemaining} {sessionMinutesRemaining === 1 ? 'minute' : 'minutes'} remaining
+            </Text>
+            <Text style={[styles.modalText, { color: textSecColor, textAlign: 'center', marginTop: 8, fontSize: 13 }]}>
+              Hang tight — you can still accept or reject offers during this time.
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 20 }]}
+              onPress={() => { tapFeedback(); setShowSessionLockModal(false); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalButtonText}>Got It</Text>
             </TouchableOpacity>
           </View>
         </View>
