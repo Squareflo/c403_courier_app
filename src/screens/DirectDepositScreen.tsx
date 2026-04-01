@@ -117,7 +117,7 @@ export function DirectDepositScreen({ onBack, onContinue }: DirectDepositScreenP
       if (courier.city_id) {
         const { data: cityData } = await supabase
           .from('city')
-          .select('name, state_province:state_province_id(name, short_name, country:country_id(name))')
+          .select('name, state_province:state_province_id(name, code, country:country_id(name))')
           .eq('id', courier.city_id)
           .single();
 
@@ -125,7 +125,7 @@ export function DirectDepositScreen({ onBack, onContinue }: DirectDepositScreenP
           city = cityData.name || '';
           const sp = cityData.state_province as any;
           if (sp) {
-            state = sp.short_name || sp.name || '';
+            state = sp.code || sp.name || '';
             if (sp.country?.name) country = sp.country.name;
           }
         }

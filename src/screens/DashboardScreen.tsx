@@ -158,12 +158,12 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     (async () => {
       const { data } = await supabase
         .from('city')
-        .select('name, state_province:state_province_id(short_name)')
+        .select('name, state_province:state_province_id(code)')
         .eq('id', cityId)
         .single();
       if (data) {
         const sp = data.state_province as any;
-        setCityProvince(sp?.short_name ? `${data.name}, ${sp.short_name}` : data.name || '');
+        setCityProvince(sp?.code ? `${data.name}, ${sp.code}` : data.name || '');
       }
     })();
   }, [courier?.city_id, isApplicationMode, applicationData?.community]);
