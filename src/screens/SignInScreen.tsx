@@ -256,7 +256,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       const { data: customerData, error: customerError } = await supabase
         .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
         .eq('id', data.user.id)
         .single();
 
@@ -290,7 +290,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
           phone_number: customerData.phone_number,
           roles: userRoles,
           is_verified: customerData.is_verified,
-          community: customerData.community,
+
           is_online: customerData.is_online || false,
           current_location_latitude: customerData.current_location_latitude,
           current_location_longitude: customerData.current_location_longitude,
@@ -421,7 +421,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       const { data: customerData, error: customerError } = await supabase
         .from('customer')
-        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, community, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
+        .select('id, first_name, last_name, email, profile_picture_url, phone_number, roles, is_verified, is_online, current_location_latitude, current_location_longitude, points_30_days, city_id, preferred_distance_unit')
         .eq('id', signInData.user.id)
         .single();
 
@@ -444,7 +444,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
           phone_number: customerData.phone_number,
           roles: userRoles,
           is_verified: customerData.is_verified,
-          community: customerData.community,
+
           is_online: customerData.is_online || false,
           current_location_latitude: customerData.current_location_latitude,
           current_location_longitude: customerData.current_location_longitude,
