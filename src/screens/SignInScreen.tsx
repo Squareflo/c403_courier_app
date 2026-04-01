@@ -36,7 +36,7 @@ import { FlatList, Modal } from 'react-native';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password' | 'enter-reset-code' | 'reset-success';
-type TabType = 'signin' | 'signup';
+type StepType = 'initial' | 'signin' | 'register';
 
 interface SignInScreenProps {
   onSignInSuccess: () => void;
@@ -83,17 +83,19 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
   // Screen state
   const [screen, setScreen] = useState<Screen>('auth');
-  const [activeTab, setActiveTab] = useState<TabType>('signin');
+  const [step, setStep] = useState<StepType>('initial');
+
+  // Email (shared across steps)
+  const [email, setEmail] = useState('');
 
   // Sign In fields
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   // Sign Up fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -110,9 +112,9 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
   // Forgot password state
   const [resetEmail, setResetEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
-  const [resetStep, setResetStep] = useState(1); // 1=email, (screen changes) 1=code, 2=new pass, 3=success
+  const [resetStep, setResetStep] = useState(1); // 1=code, 2=new pass, 3=success
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
 
   // Shared
   const [errors, setErrors] = useState<any>({});
@@ -155,9 +157,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
   const textColor = isDark ? colors.text : '#000';
   const textSecColor = isDark ? colors.textSecondary : '#555';
   const cardBg = isDark ? colors.card : colors.card;
-  const tabInactiveColor = isDark ? colors.textSecondary : '#666';
-  const tabActiveColor = isDark ? colors.text : '#000';
-  const tabUnderline = isDark ? colors.border : '#E5E5E5';
+  const subtextColor = isDark ? colors.textSecondary : '#666';
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -168,12 +168,65 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
     setScreen(s);
   };
 
+  const handleBack = () => {
+    setStep('initial');
+    setPassword('');
+    setSignupPassword('');
+    setConfirmPassword('');
+    setErrors({});
+    setSuccessMessage('');
+  };
+
+  // ── Email Check (initial step) ────────────────────────────────────
+
+  const handleEmailSubmit = async () => {
+    if (!email) {
+      setErrors({ email: 'Email is required' });
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setErrors({ email: 'Email is invalid' });
+      return;
+    }
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if customer exists
+      const { data: customers, error: checkError } = await supabase
+        .from('customer')
+        .select('id, first_name')
+        .eq('email', normalizedEmail)
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error checking customer:', checkError);
+        setErrors({ general: 'Something went wrong. Please try again.' });
+        return;
+      }
+
+      if (customers && customers.length > 0) {
+        // Existing customer - go to sign in
+        setStep('signin');
+      } else {
+        // New customer - go to registration
+        setStep('register');
+      }
+    } catch (error: any) {
+      console.error('Error checking email:', error);
+      setErrors({ general: 'Something went wrong. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ── Sign In ─────────────────────────────────────────────────────────
 
   const handleSignIn = async () => {
     const newErrors: any = {};
-    if (!email) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Email is invalid';
     if (!password) newErrors.password = 'Password is required';
     else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
     if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
@@ -289,11 +342,11 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
     const newErrors: any = {};
     if (!firstName) newErrors.firstName = 'First name is required';
     if (!lastName) newErrors.lastName = 'Last name is required';
-    if (!signupEmail) newErrors.signupEmail = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(signupEmail)) newErrors.signupEmail = 'Email is invalid';
     if (!phoneNumber) newErrors.phoneNumber = 'Phone number is required';
     if (!signupPassword) newErrors.signupPassword = 'Password is required';
     else if (signupPassword.length < 6) newErrors.signupPassword = 'Password must be at least 6 characters';
+    if (!confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
+    else if (signupPassword !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
 
     setIsLoading(true);
@@ -304,7 +357,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const response = await registerCustomer({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        email: signupEmail.toLowerCase().trim(),
+        email: email.toLowerCase().trim(),
         phone_number: formattedPhone,
         password: signupPassword,
       });
@@ -312,7 +365,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const result = response.data;
       await supabase.auth.signOut();
 
-      setVerifyEmail_(result.email || signupEmail.toLowerCase().trim());
+      setVerifyEmail_(result.email || email.toLowerCase().trim());
       setVerifyUserId(result.id);
       setVerifyPassword(signupPassword);
       setCountdown(45);
@@ -325,9 +378,10 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
       const fullStr = `${errorMessage} ${errorData.details || ''}`.toLowerCase();
 
       if (fullStr.includes('already been registered') || fullStr.includes('already exists') || fullStr.includes('already registered')) {
-        setErrors({ signupEmail: 'This email is already registered. Please sign in instead.' });
+        setErrors({ general: 'This email is already registered. Please sign in instead.' });
+        setStep('signin');
       } else if (errorMessage.toLowerCase().includes('email')) {
-        setErrors({ signupEmail: errorMessage });
+        setErrors({ general: errorMessage });
       } else if (errorMessage.toLowerCase().includes('password')) {
         setErrors({ signupPassword: errorMessage });
       } else if (errorMessage.toLowerCase().includes('phone')) {
@@ -361,7 +415,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       if (signInError || !signInData.user) {
         setError('Email verified! Please sign in.');
-        setTimeout(() => { goToScreen('auth'); setActiveTab('signin'); setEmail(verifyEmail_); }, 2000);
+        setTimeout(() => { goToScreen('auth'); setStep('signin'); setEmail(verifyEmail_); }, 2000);
         return;
       }
 
@@ -373,7 +427,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
       if (customerError || !customerData || !customerData.is_verified) {
         setError('Email verified! Please sign in.');
-        setTimeout(() => { goToScreen('auth'); setActiveTab('signin'); setEmail(verifyEmail_); }, 2000);
+        setTimeout(() => { goToScreen('auth'); setStep('signin'); setEmail(verifyEmail_); }, 2000);
         return;
       }
 
@@ -485,7 +539,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
 
   const handleSetNewPassword = async () => {
     if (!newPassword || newPassword.length < 6) { setError('Password must be at least 6 characters'); return; }
-    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return; }
+    if (newPassword !== resetConfirmPassword) { setError('Passwords do not match'); return; }
 
     setIsLoading(true);
     setError('');
@@ -521,84 +575,203 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
     }
   };
 
-  // ── Render: Auth (Sign In / Sign Up) ────────────────────────────────
+  // ── Render: Auth (Step-based) ─────────────────────────────────────
 
   const renderAuth = () => (
     <>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ width: 40 }} />
-        <Text style={[styles.headerTitle, { color: textColor }]}>Welcome</Text>
-        <TouchableOpacity
-          style={[styles.themeToggle, { backgroundColor: isDark ? colors.surface : '#e5e5e5' }]}
-          onPress={toggleTheme}
-          activeOpacity={0.8}
-        >
-          {isDark ? <Sun size={18} color={colors.icon} /> : <Moon size={18} color={colors.icon} />}
-        </TouchableOpacity>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity style={styles.tab} onPress={() => { setActiveTab('signin'); clearErrors(); }} activeOpacity={0.7}>
-          <Text style={[styles.tabText, { color: activeTab === 'signin' ? tabActiveColor : tabInactiveColor }]}>Sign In</Text>
-          <View style={[styles.tabUnderline, { backgroundColor: tabUnderline }, activeTab === 'signin' && { height: 3, backgroundColor: tabActiveColor }]} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab} onPress={() => { setActiveTab('signup'); clearErrors(); }} activeOpacity={0.7}>
-          <Text style={[styles.tabText, { color: activeTab === 'signup' ? tabActiveColor : tabInactiveColor }]}>Sign Up</Text>
-          <View style={[styles.tabUnderline, { backgroundColor: tabUnderline }, activeTab === 'signup' && { height: 3, backgroundColor: tabActiveColor }]} />
-        </TouchableOpacity>
-      </View>
+      {step === 'initial' ? (
+        <View style={styles.header}>
+          <View style={{ width: 40 }} />
+          <Text style={[styles.headerTitle, { color: textColor }]}>Welcome</Text>
+          <TouchableOpacity
+            style={[styles.themeToggle, { backgroundColor: isDark ? colors.surface : '#e5e5e5' }]}
+            onPress={toggleTheme}
+            activeOpacity={0.8}
+          >
+            {isDark ? <Sun size={18} color={colors.icon} /> : <Moon size={18} color={colors.icon} />}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <ArrowLeft size={24} color={textColor} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: textColor }]}>
+            {step === 'signin' ? 'Sign In' : 'Create Account'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.themeToggle, { backgroundColor: isDark ? colors.surface : '#e5e5e5' }]}
+            onPress={toggleTheme}
+            activeOpacity={0.8}
+          >
+            {isDark ? <Sun size={18} color={colors.icon} /> : <Moon size={18} color={colors.icon} />}
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.formContainer}>
-        {activeTab === 'signin' ? (
+        {/* Initial step: email + Continue */}
+        {step === 'initial' && (
           <>
-            <FormField label="Email" value={email} onChangeText={t => { setEmail(t); if (errors.email) setErrors({ ...errors, email: null }); }} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" error={errors.email} />
-            <FormField label="Password" value={password} onChangeText={t => { setPassword(t); if (errors.password) setErrors({ ...errors, password: null }); }} placeholder="Enter your password" secureTextEntry error={errors.password} />
+            <FormField
+              label="Email Address"
+              value={email}
+              onChangeText={(t: string) => { setEmail(t); if (errors.email) setErrors({ ...errors, email: null }); }}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email}
+            />
+
+            {errors.general ? <Text style={styles.generalError}>{errors.general}</Text> : null}
+
+            <Button
+              title={isLoading ? 'Checking...' : 'Continue'}
+              onPress={handleEmailSubmit}
+              variant="dark"
+              size="large"
+              style={styles.actionButton}
+              disabled={isLoading}
+            />
+
+            <Text style={[styles.subtextCenter, { color: subtextColor }]}>
+              Enter your email address to allow us to check if you already have an account. If not, we'll help you create one.
+            </Text>
+          </>
+        )}
+
+        {/* Sign In step: password only */}
+        {step === 'signin' && (
+          <>
+            <Text style={[styles.contextText, { color: subtextColor }]}>
+              You already have a Chow Local account. Please sign in below.
+            </Text>
+
+            <FormField
+              label="Password"
+              value={password}
+              onChangeText={(t: string) => { setPassword(t); if (errors.password) setErrors({ ...errors, password: null }); }}
+              placeholder="Enter your password"
+              secureTextEntry
+              error={errors.password}
+            />
 
             {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
             {errors.general ? <Text style={styles.generalError}>{errors.general}</Text> : null}
 
-            <Button title={isLoading ? 'Signing In...' : 'Sign In'} onPress={handleSignIn} variant="dark" size="large" style={{ marginTop: 15 }} disabled={isLoading} />
+            <Button
+              title={isLoading ? 'Signing In...' : 'Sign In'}
+              onPress={handleSignIn}
+              variant="dark"
+              size="large"
+              style={styles.actionButton}
+              disabled={isLoading}
+            />
 
             <View style={styles.forgotContainer}>
               <Text style={[styles.forgotText, { color: textSecColor }]}>
                 Forgot your password?{' '}
-                <Text style={[styles.resetLink, { color: textColor }]} onPress={() => { setResetEmail(''); setResetCode(''); setResetStep(1); setNewPassword(''); setConfirmPassword(''); goToScreen('forgot-password'); }}>
+                <Text
+                  style={[styles.resetLink, { color: textColor }]}
+                  onPress={() => {
+                    setResetEmail(email);
+                    setResetCode('');
+                    setResetStep(1);
+                    setNewPassword('');
+                    setResetConfirmPassword('');
+                    goToScreen('forgot-password');
+                  }}
+                >
                   Reset it.
                 </Text>
               </Text>
             </View>
           </>
-        ) : (
+        )}
+
+        {/* Register step: full form */}
+        {step === 'register' && (
           <>
-            <FormField label="First Name" value={firstName} onChangeText={t => { setFirstName(t); if (errors.firstName) setErrors({ ...errors, firstName: null }); }} placeholder="Enter your first name" autoCapitalize="words" error={errors.firstName} />
-            <FormField label="Last Name" value={lastName} onChangeText={t => { setLastName(t); if (errors.lastName) setErrors({ ...errors, lastName: null }); }} placeholder="Enter your last name" autoCapitalize="words" error={errors.lastName} />
-            <FormField label="Email" value={signupEmail} onChangeText={t => { setSignupEmail(t); if (errors.signupEmail) setErrors({ ...errors, signupEmail: null }); }} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" error={errors.signupEmail} />
+            <Text style={[styles.contextText, { color: subtextColor }]}>
+              Let's create your Chow Local account.
+            </Text>
+
+            <FormField
+              label="First Name"
+              value={firstName}
+              onChangeText={(t: string) => { setFirstName(t); if (errors.firstName) setErrors({ ...errors, firstName: null }); }}
+              placeholder="Enter your first name"
+              autoCapitalize="words"
+              error={errors.firstName}
+            />
+
+            <FormField
+              label="Last Name"
+              value={lastName}
+              onChangeText={(t: string) => { setLastName(t); if (errors.lastName) setErrors({ ...errors, lastName: null }); }}
+              placeholder="Enter your last name"
+              autoCapitalize="words"
+              error={errors.lastName}
+            />
 
             {/* Phone with country picker */}
             <View style={{ marginBottom: 20 }}>
               <Text style={[styles.fieldLabel, { color: isDark ? colors.textSecondary : '#333' }]}>Mobile Number</Text>
               <View style={styles.phoneRow}>
-                <TouchableOpacity style={[styles.countryBtn, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]} onPress={() => setShowCountryPicker(true)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={[styles.countryBtn, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+                  onPress={() => setShowCountryPicker(true)}
+                  activeOpacity={0.7}
+                >
                   <Text style={{ fontSize: 20 }}>{selectedCountry.flag}</Text>
                   <Text style={[styles.dialCodeText, { color: textColor }]}>{selectedCountry.dialCode}</Text>
                   <ChevronDown size={16} color={textSecColor} />
                 </TouchableOpacity>
                 <View style={{ flex: 1, marginBottom: -20 }}>
-                  <FormField value={phoneNumber} onChangeText={t => { setPhoneNumber(t); if (errors.phoneNumber) setErrors({ ...errors, phoneNumber: null }); }} placeholder="Phone Number" keyboardType="phone-pad" error={errors.phoneNumber} />
+                  <FormField
+                    value={phoneNumber}
+                    onChangeText={(t: string) => { setPhoneNumber(t); if (errors.phoneNumber) setErrors({ ...errors, phoneNumber: null }); }}
+                    placeholder="Phone Number"
+                    keyboardType="phone-pad"
+                    error={errors.phoneNumber}
+                  />
                 </View>
               </View>
             </View>
 
-            <FormField label="Password" value={signupPassword} onChangeText={t => { setSignupPassword(t); if (errors.signupPassword) setErrors({ ...errors, signupPassword: null }); }} placeholder="Enter your password" secureTextEntry error={errors.signupPassword} />
+            <FormField
+              label="Password"
+              value={signupPassword}
+              onChangeText={(t: string) => { setSignupPassword(t); if (errors.signupPassword) setErrors({ ...errors, signupPassword: null }); }}
+              placeholder="Create a password"
+              secureTextEntry
+              error={errors.signupPassword}
+            />
+
+            <FormField
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={(t: string) => { setConfirmPassword(t); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
+              placeholder="Confirm your password"
+              secureTextEntry
+              error={errors.confirmPassword}
+            />
 
             {errors.general ? <Text style={styles.generalError}>{errors.general}</Text> : null}
 
-            <Button title={isLoading ? 'Creating Account...' : 'Continue'} onPress={handleSignUp} variant="dark" size="large" style={{ marginTop: 15 }} disabled={isLoading} />
+            <Button
+              title={isLoading ? 'Creating Account...' : 'Create Account'}
+              onPress={handleSignUp}
+              variant="dark"
+              size="large"
+              style={styles.actionButton}
+              disabled={isLoading}
+            />
           </>
         )}
 
+        {/* Need Help section on every step */}
         <View style={styles.helpContainer}>
           <Text style={[styles.helpText, { color: textSecColor }]}>
             Need help?{' '}
@@ -640,7 +813,7 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
             We sent the code to:{' '}
             <Text style={{ fontFamily: fontFamily.bold }}>{verifyEmail_}</Text>
             . Wrong email?{' '}
-            <Text style={{ textDecorationLine: 'underline' }} onPress={() => goToScreen('auth')}>Start over</Text>.
+            <Text style={{ textDecorationLine: 'underline' }} onPress={() => { goToScreen('auth'); setStep('initial'); }}>Start over</Text>.
           </Text>
         </View>
 
@@ -651,6 +824,13 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
             ) : (
               <>Or, you can <Text style={{ color: textSecColor }}>resend</Text> it in: <Text style={{ fontFamily: fontFamily.bold }}>{countdown} seconds</Text></>
             )}
+          </Text>
+        </View>
+
+        <View style={styles.helpContainer}>
+          <Text style={[styles.helpText, { color: textSecColor }]}>
+            Need help?{' '}
+            <Text style={[styles.helpLink, { color: textColor }]}>Contact Support</Text>
           </Text>
         </View>
       </View>
@@ -738,9 +918,9 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
             {error ? <View style={styles.errorBox}><Text style={styles.errorBoxText}>{error}</Text></View> : null}
 
             <FormField key="reset-new-pw" label="New Password" value={newPassword} onChangeText={t => { setNewPassword(t); if (error) setError(''); }} placeholder="Enter new password" secureTextEntry style={{ letterSpacing: 0 }} />
-            <FormField key="reset-confirm-pw" label="Confirm New Password" value={confirmPassword} onChangeText={t => { setConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry style={{ letterSpacing: 0 }} />
+            <FormField key="reset-confirm-pw" label="Confirm New Password" value={resetConfirmPassword} onChangeText={t => { setResetConfirmPassword(t); if (error) setError(''); }} placeholder="Confirm new password" secureTextEntry style={{ letterSpacing: 0 }} />
 
-            <Button title={isLoading ? 'Setting Password...' : 'Set New Password'} onPress={handleSetNewPassword} variant="dark" size="large" style={{ marginTop: 8 }} disabled={isLoading || !newPassword || !confirmPassword} />
+            <Button title={isLoading ? 'Setting Password...' : 'Set New Password'} onPress={handleSetNewPassword} variant="dark" size="large" style={{ marginTop: 8 }} disabled={isLoading || !newPassword || !resetConfirmPassword} />
           </>
         )}
 
@@ -754,9 +934,16 @@ export function SignInScreen({ onSignInSuccess, onShowApplication }: SignInScree
             <Text style={[styles.descText, { color: textSecColor }]}>
               Your password has been successfully updated. You can now sign in with your new password.
             </Text>
-            <Button title="Proceed to Sign In" onPress={() => { goToScreen('auth'); setActiveTab('signin'); }} variant="dark" size="large" style={{ marginTop: 8 }} />
+            <Button title="Proceed to Sign In" onPress={() => { goToScreen('auth'); setStep('signin'); }} variant="dark" size="large" style={{ marginTop: 8 }} />
           </>
         )}
+
+        <View style={styles.helpContainer}>
+          <Text style={[styles.helpText, { color: textSecColor }]}>
+            Need help?{' '}
+            <Text style={[styles.helpLink, { color: textColor }]}>Contact Support</Text>
+          </Text>
+        </View>
       </View>
     </>
   );
@@ -849,18 +1036,17 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: fontFamily.bold, fontSize: 20 },
   themeToggle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
-  // Tabs
-  tabContainer: { flexDirection: 'row', paddingHorizontal: 24, marginTop: 4 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabText: { fontFamily: fontFamily.semiBold, fontSize: 16 },
-  tabUnderline: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 1 },
-
   // Form
   formContainer: { padding: 24, paddingTop: 40 },
+  actionButton: { marginTop: 15, marginBottom: 20 },
   fieldLabel: { fontFamily: fontFamily.semiBold, fontSize: 14, marginBottom: 8 },
   phoneRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   countryBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 12, gap: 4, minWidth: 95, borderWidth: 1 },
   dialCodeText: { fontFamily: fontFamily.regular, fontSize: 16 },
+
+  // Context text (below header on signin/register steps)
+  contextText: { fontFamily: fontFamily.regular, fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  subtextCenter: { fontFamily: fontFamily.regular, fontSize: 13, lineHeight: 19, textAlign: 'left', marginTop: 4 },
 
   // Forgot password
   forgotContainer: { alignSelf: 'center', marginTop: 10 },
