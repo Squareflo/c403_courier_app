@@ -254,8 +254,8 @@ export function WalletScreen({ onBack }: { onBack?: () => void }) {
     if (!courier?.id) return;
     // Step 1: Check city_id (courier must have a city set)
     try {
-      const { data: custData } = await supabase.from('customer').select('city_id, community_id').eq('id', courier.id).single();
-      if (!custData?.city_id && !custData?.community_id) { setShowCommunityGate(true); return; }
+      const { data: custData } = await supabase.from('customer').select('city_id').eq('id', courier.id).single();
+      if (!custData?.city_id) { setShowCommunityGate(true); return; }
     } catch (e) { console.log('[WalletScreen] city check error:', e); }
     // Step 2: If Stripe not connected, always show DirectDeposit first (so courier can verify details)
     if (!isStripeConnected) { setShowDirectDeposit(true); return; }

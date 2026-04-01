@@ -48,7 +48,7 @@ export default function App() {
 
         const { data } = await supabase
           .from('customer')
-          .select('roles, is_verified, community_id')
+          .select('roles, is_verified, city_id')
           .eq('id', session.user.id)
           .single();
 
@@ -62,8 +62,8 @@ export default function App() {
         const isApplicant = userRoles.includes('courier-applicant');
 
         if (isCourier) {
-          // Check if courier has a community_id — if not, show community gate
-          if (!data.community_id) {
+          // Check if courier has a city_id — if not, show community gate
+          if (!data.city_id) {
             setAppScreen('community-gate');
             return;
           }
@@ -114,16 +114,16 @@ export default function App() {
             ) : (
               <SignInScreen
                 onSignInSuccess={async () => {
-                  // Re-check community_id before allowing into main app
+                  // Re-check city_id before allowing into main app
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
                     if (session?.user) {
                       const { data } = await supabase
                         .from('customer')
-                        .select('community_id')
+                        .select('city_id')
                         .eq('id', session.user.id)
                         .single();
-                      if (!data?.community_id) {
+                      if (!data?.city_id) {
                         setAppScreen('community-gate');
                         return;
                       }

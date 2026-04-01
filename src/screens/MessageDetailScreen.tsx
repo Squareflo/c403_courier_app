@@ -82,10 +82,10 @@ export function MessageDetailScreen({ messageId, onBack }: MessageDetailScreenPr
       const currentUser = await getCurrentUser();
       if (currentUser) {
         setCurrentUserFirstName(currentUser.first_name || null);
-        if (currentUser.community_id) {
-          const { data: community } = await supabase
-            .from('community').select('name').eq('id', currentUser.community_id).single();
-          if (community) setCurrentUserCommunity(community.name);
+        if (currentUser.city_id) {
+          const { data: cityData } = await supabase
+            .from('city').select('name').eq('id', currentUser.city_id).single();
+          if (cityData) setCurrentUserCommunity(cityData.name);
         }
       }
 

@@ -195,7 +195,7 @@ async function getMessageTargetingContext(userId: string): Promise<MessageTarget
   try {
     const { data: customer, error } = await supabase
       .from('customer')
-      .select('roles, community_id, managed_cities')
+      .select('roles, city_id, managed_cities')
       .eq('id', userId)
       .maybeSingle();
 
@@ -203,7 +203,18 @@ async function getMessageTargetingContext(userId: string): Promise<MessageTarget
       console.warn('[Messages] Error loading customer targeting fields:', error);
     } else if (customer) {
       roles = Array.isArray(customer.roles) ? customer.roles.filter(Boolean) : [];
-      communityId = (customer.community_id as string | null) ?? null;
+      // Look up community from city_id
+      if (customer.city_id) {
+        try {
+          const { data: comm } = await supabase
+            .from('community')
+            .select('id')
+            .eq('city_id', customer.city_id)
+            .limit(1)
+            .maybeSingle();
+          if (comm) communityId = comm.id;
+        } catch {}
+      }
       territoryIds = Array.isArray(customer.managed_cities)
         ? customer.managed_cities.filter(Boolean)
         : [];
@@ -212,7 +223,7 @@ async function getMessageTargetingContext(userId: string): Promise<MessageTarget
     console.warn('[Messages] Unexpected error loading customer targeting fields:', e);
   }
 
-  // Fallback to cached location-derived community if customer.community_id is missing
+  // Fallback to cached location-derived community if city_id lookup didn't find one
   if (!communityId) {
     try {
       const cachedLocation = await getCachedLocationOnly();

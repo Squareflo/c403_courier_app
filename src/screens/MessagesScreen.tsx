@@ -138,13 +138,13 @@ export function MessagesScreen({ onBack, onMessagePress, onChatPress, markMessag
       if (currentUser) {
         setCurrentUserFirstName(currentUser.first_name || null);
         setCurrentUserCommunity(null);
-        if (currentUser.community_id) {
-          const { data: community } = await supabase
-            .from('community')
+        if (currentUser.city_id) {
+          const { data: cityData } = await supabase
+            .from('city')
             .select('name')
-            .eq('id', currentUser.community_id)
+            .eq('id', currentUser.city_id)
             .single();
-          if (community) setCurrentUserCommunity(community.name);
+          if (cityData) setCurrentUserCommunity(cityData.name);
         }
       }
 
