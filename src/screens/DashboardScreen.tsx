@@ -17,7 +17,7 @@ import { AlertTriangle, ChevronDown, Clock, LogOut, Moon, Star, Sun, User, X } f
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
-import { formatDistanceRound, getDistanceUnit, getPerDistanceLabel, formatDistance } from '../utils/distance';
+import { convertDistance, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
 import { spacing } from '../constants/spacing';
 import SlideToOnline from '../components/ui/SlideToOnline';
 import { getCourierPeriodStats } from '../services/api';
@@ -399,15 +399,15 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-                <Text style={[styles.statValue, { color: colors.text }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{convertDistance(stats.totalKm, distUnit)}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-                <Text style={[styles.statValue, { color: colors.text }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Per Delivery</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{convertDistance(stats.avgKmPerDelivery, distUnit)}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)} Per Delivery</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-                <Text style={[styles.statValue, { color: colors.text }]}>${stats.earningsPerKm.toFixed(1)}</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>${(stats.totalKm > 0 ? stats.earned / Number(convertDistance(stats.totalKm, distUnit, 2)) : 0).toFixed(1)}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getPerDistanceLabel(distUnit)}</Text>
               </View>
             </ScrollView>

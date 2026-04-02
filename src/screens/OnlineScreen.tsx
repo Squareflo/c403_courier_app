@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertTriangle, Clock, Moon, Sun, User, ZapOff } from 'lucide-react-native';
+import { AlertTriangle, Clock, Moon, Sun, User } from 'lucide-react-native';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,7 +21,7 @@ import { fontFamily } from '../constants/typography';
 import { spacing } from '../constants/spacing';
 import { supabase } from '../lib/supabase';
 import { updateCourierOnlineStatus, getCourierPeriodStats } from '../services/api';
-import { formatDistance, formatDistanceRound, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
+import { convertDistance, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
 import {
   startLocationTracking,
   stopLocationTracking,
@@ -124,6 +124,22 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const [showSessionLockModal, setShowSessionLockModal] = useState(false);
   const [sessionMinutesRemaining, setSessionMinutesRemaining] = useState(0);
   const [minSessionMinutes, setMinSessionMinutes] = useState(60);
+  const [sessionRemainingLive, setSessionRemainingLive] = useState<number | null>(null);
+
+  // Live countdown of session remaining minutes
+  useEffect(() => {
+    if (!courier?.went_online_at || !minSessionMinutes) return;
+    const update = () => {
+      const elapsed = (Date.now() - new Date(courier.went_online_at).getTime()) / 60000;
+      const remaining = minSessionMinutes - elapsed;
+      setSessionRemainingLive(remaining > 0 ? Math.ceil(remaining) : 0);
+    };
+    update();
+    const interval = setInterval(update, 30000); // update every 30s
+    return () => clearInterval(interval);
+  }, [courier?.went_online_at, minSessionMinutes]);
+
+  const canGoOffline = sessionRemainingLive !== null && sessionRemainingLive <= 0;
 
   // Stats
   const [stats, setStats] = useState<TodayStats>({
@@ -490,17 +506,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     }
   };
 
-  // ── ZapOff icon press ───────────────────────────────────────────────────
-
-  const handleZapOffPress = () => {
-    tapFeedback();
-    if (hasActiveDeliveries) {
-      setShowOfflineModal(true);
-    } else {
-      handleGoOffline();
-    }
-  };
-
   // ── Theme toggle ────────────────────────────────────────────────────────
 
   const handleThemeToggle = () => {
@@ -566,7 +571,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           )}
 
           <View style={styles.headerCenter}>
-            <View style={styles.onlineDot} />
             <Text style={[styles.onlineText, { color: textColor }]}>Online</Text>
           </View>
 
@@ -581,14 +585,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
               ) : (
                 <Moon size={22} color={textColor} />
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.headerAction, hasActiveDeliveries && { opacity: 0.3 }]}
-              onPress={handleZapOffPress}
-              activeOpacity={0.7}
-            >
-              <ZapOff size={24} color={textColor} />
             </TouchableOpacity>
           </View>
         </View>
@@ -620,15 +616,15 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
             <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{formatDistanceRound(stats.totalKm, distUnit)}</Text>
+            <Text style={[styles.statValue, { color: textColor }]}>{convertDistance(stats.totalKm, distUnit)}</Text>
             <Text style={[styles.statLabel, { color: textSecColor }]}>{getDistanceUnit(distUnit)}</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>{formatDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>Per Delivery</Text>
+            <Text style={[styles.statValue, { color: textColor }]}>{convertDistance(stats.avgKmPerDelivery, distUnit)}</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>{getDistanceUnit(distUnit)} Per Delivery</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-            <Text style={[styles.statValue, { color: textColor }]}>${stats.earningsPerKm.toFixed(1)}</Text>
+            <Text style={[styles.statValue, { color: textColor }]}>${(stats.totalKm > 0 ? stats.earned / Number(convertDistance(stats.totalKm, distUnit, 2)) : 0).toFixed(1)}</Text>
             <Text style={[styles.statLabel, { color: textSecColor }]}>{getPerDistanceLabel(distUnit)}</Text>
           </View>
         </ScrollView>
@@ -709,11 +705,24 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
         {/* ── Go Offline Section (hidden when active deliveries) ── */}
         {!hasActiveDeliveries && (
           <View style={styles.offlineSection}>
-            <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
-              Not available to do deliveries, or just need a break?
-            </Text>
+            {canGoOffline ? (
+              <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
+                You've fulfilled your minimum session. Ready to go offline?
+              </Text>
+            ) : (
+              <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
+                Your minimum session requires {minSessionMinutes} minutes online.{' '}
+                {sessionRemainingLive !== null && (
+                  <Text style={{ fontFamily: fontFamily.semiBold, color: textColor }}>
+                    {sessionRemainingLive} {sessionRemainingLive === 1 ? 'minute' : 'minutes'} remaining.
+                  </Text>
+                )}
+              </Text>
+            )}
 
-            <SlideToOffline onSlideComplete={handleGoOffline} />
+            <View style={{ opacity: canGoOffline ? 1 : 0.35 }} pointerEvents={canGoOffline ? 'auto' : 'none'}>
+              <SlideToOffline onSlideComplete={handleGoOffline} />
+            </View>
           </View>
         )}
 
@@ -821,12 +830,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-  },
-  onlineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#27d20b',
   },
   onlineText: {
     fontFamily: fontFamily.bold,
