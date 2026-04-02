@@ -707,7 +707,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           <View style={styles.offlineSection}>
             {canGoOffline ? (
               <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
-                You've fulfilled your minimum session. Ready to go offline?
+                You can go offline at any time
               </Text>
             ) : (
               <Text style={[styles.offlinePromptText, { color: textSecColor }]}>
