@@ -21,7 +21,7 @@ import { fontFamily } from '../constants/typography';
 import { spacing } from '../constants/spacing';
 import { supabase } from '../lib/supabase';
 import { updateCourierOnlineStatus, getCourierPeriodStats } from '../services/api';
-import { convertDistance, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
+import { convertDistance, getDistanceUnit, getPerDistanceLabel, getPerDeliveryDistanceLabel } from '../utils/distance';
 import {
   startLocationTracking,
   stopLocationTracking,
@@ -621,7 +621,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.statValue, { color: textColor }]}>{convertDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-            <Text style={[styles.statLabel, { color: textSecColor }]}>{getDistanceUnit(distUnit)}/Delivery</Text>
+            <Text style={[styles.statLabel, { color: textSecColor }]}>{getPerDeliveryDistanceLabel(distUnit)}</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: cardBg }]}>
             <Text style={[styles.statValue, { color: textColor }]}>${(stats.totalKm > 0 ? stats.earned / Number(convertDistance(stats.totalKm, distUnit, 2)) : 0).toFixed(1)}</Text>

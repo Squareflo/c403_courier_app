@@ -46,6 +46,13 @@ export function getPerDistanceLabel(preferredUnit?: string | null): string {
 }
 
 /**
+ * Get "KM/Delivery" or "Miles/Del." label
+ */
+export function getPerDeliveryDistanceLabel(preferredUnit?: string | null): string {
+  return usesMiles(preferredUnit) ? 'Miles/Del.' : 'KM/Delivery';
+}
+
+/**
  * Convert km value for display (without unit suffix)
  */
 export function convertDistance(km: number | null, preferredUnit?: string | null, decimals: number = 1): string {

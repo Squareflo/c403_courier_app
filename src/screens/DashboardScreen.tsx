@@ -17,7 +17,7 @@ import { AlertTriangle, ChevronDown, Clock, LogOut, Moon, Star, Sun, User, X } f
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
-import { convertDistance, getDistanceUnit, getPerDistanceLabel } from '../utils/distance';
+import { convertDistance, getDistanceUnit, getPerDistanceLabel, getPerDeliveryDistanceLabel } from '../utils/distance';
 import { spacing } from '../constants/spacing';
 import SlideToOnline from '../components/ui/SlideToOnline';
 import { getCourierPeriodStats } from '../services/api';
@@ -404,7 +404,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={[styles.statValue, { color: colors.text }]}>{convertDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}/Delivery</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getPerDeliveryDistanceLabel(distUnit)}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={[styles.statValue, { color: colors.text }]}>${(stats.totalKm > 0 ? stats.earned / Number(convertDistance(stats.totalKm, distUnit, 2)) : 0).toFixed(1)}</Text>
