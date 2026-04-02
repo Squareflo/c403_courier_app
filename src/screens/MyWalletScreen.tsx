@@ -9,6 +9,7 @@ import {
   Wallet, CreditCard, Banknote, Coins, ChevronLeft, ExternalLink,
   AlertCircle, CheckCircle, Mail, Info, X,
 } from 'lucide-react-native';
+import { useFonts, Montserrat_400Regular, Montserrat_500Medium, Montserrat_600SemiBold, Montserrat_700Bold, Montserrat_900Black } from '@expo-google-fonts/montserrat';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fontFamily } from '../constants/typography';
@@ -280,6 +281,9 @@ function PayoutScreen({ onBack, availableAmount, holdDays, onConfirm, processing
 type SubScreen = 'dashboard' | 'payments' | 'store-credit' | 'credit-transactions' | 'payout' | 'stripe-connect' | 'community-gate' | 'direct-deposit';
 
 export function MyWalletScreen({ onBack }: { onBack?: () => void }) {
+  const [fontsLoaded] = useFonts({
+    Montserrat_400Regular, Montserrat_500Medium, Montserrat_600SemiBold, Montserrat_700Bold, Montserrat_900Black,
+  });
   const { courier, refreshCourier } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -521,7 +525,7 @@ const styles = StyleSheet.create({
   balanceIconContainer: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   balanceInfo: { flex: 1, marginLeft: 14 },
   balanceLabel: { fontFamily: fontFamily.regular, fontSize: 13, marginBottom: 2 },
-  balanceAmount: { fontFamily: fontFamily.bold, fontSize: 28 },
+  balanceAmount: { fontFamily: fontFamily.black, fontSize: 28 },
   balanceDescription: { fontFamily: fontFamily.regular, fontSize: 13, lineHeight: 18, marginTop: 12 },
 
   // Payout button on balance card
@@ -539,7 +543,7 @@ const styles = StyleSheet.create({
   // Store Credit + QR Row
   storeCreditRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
   storeCreditCard: { flex: 1, borderRadius: layout.cardBorderRadius, padding: layout.cardPadding, flexDirection: 'row', alignItems: 'center', ...layout.cardShadow },
-  storeCreditAmount: { fontFamily: fontFamily.bold, fontSize: 22 },
+  storeCreditAmount: { fontFamily: fontFamily.black, fontSize: 22 },
   storeCreditPlaces: { fontFamily: fontFamily.regular, fontSize: 13, marginTop: 2 },
   qrCard: { width: 120, borderRadius: layout.cardBorderRadius, padding: spacing.lg, alignItems: 'center', justifyContent: 'center', ...layout.cardShadow },
 

@@ -15,6 +15,7 @@ export const fontFamily = {
   medium: 'Montserrat_500Medium',
   semiBold: 'Montserrat_600SemiBold',
   bold: 'Montserrat_700Bold',
+  black: 'Montserrat_900Black',
 } as const;
 
 // Base typography styles
