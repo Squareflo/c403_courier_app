@@ -404,7 +404,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={[styles.statValue, { color: colors.text }]}>{convertDistance(stats.avgKmPerDelivery, distUnit)}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)} Per Delivery</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{getDistanceUnit(distUnit)}/Delivery</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={[styles.statValue, { color: colors.text }]}>${(stats.totalKm > 0 ? stats.earned / Number(convertDistance(stats.totalKm, distUnit, 2)) : 0).toFixed(1)}</Text>
