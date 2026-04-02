@@ -42,10 +42,14 @@ const getTransactionIcon = (entry: LedgerEntry) => {
   }
 };
 
-function TransactionItem({ transaction, colors }: { transaction: LedgerEntry; colors: any }) {
+function TransactionItem({ transaction, colors, isDark }: { transaction: LedgerEntry; colors: any; isDark: boolean }) {
+  const icon = getTransactionIcon(transaction);
   return (
     <View style={[styles.transactionCard, { backgroundColor: colors.card }]}>
       <View style={styles.transactionRow}>
+        <View style={[styles.transactionIconWrap, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F3F4F6' }]}>
+          {icon}
+        </View>
         <View style={styles.transactionInfo}>
           <Text style={[styles.transactionTitle, { color: colors.text }]} numberOfLines={2}>{transaction.description}</Text>
           <Text style={[styles.transactionDate, { color: colors.textSecondary }]}>{formatDate(transaction.date)}</Text>
@@ -293,11 +297,22 @@ export function WalletScreen({ onBack }: { onBack?: () => void }) {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}><TouchableOpacity onPress={onBack} style={styles.headerBackButton}><ChevronLeft size={26} color={colors.text} /></TouchableOpacity><Text style={[styles.headerTitle, { color: colors.text }]}>My Wallet</Text><View style={{ width: 36 }} /></View>
       {loading ? (<View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.textMuted} /></View>) : (
         <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} colors={[colors.textMuted]} />}>
-          <View style={[styles.balanceCard, { backgroundColor: colors.card }]}><View style={[styles.balanceIconContainer, { backgroundColor: walletIconBg }]}><Wallet size={24} color="#fff" /></View><View style={styles.balanceInfo}><Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Balance</Text><Text style={[styles.balanceAmount, { color: colors.text }]}>{formatPrice(balance)}</Text></View><TouchableOpacity style={[styles.payoutButton, !isStripeConnected && styles.payoutButtonSetup]} onPress={handlePayoutPress} activeOpacity={0.8}><Text style={styles.payoutButtonText}>Payout</Text></TouchableOpacity></View>
+          <View style={[styles.balanceCard, { backgroundColor: colors.card }]}>
+            <View style={styles.balanceCardTop}>
+              <View style={[styles.balanceIconContainer, { backgroundColor: walletIconBg }]}><Wallet size={24} color="#fff" /></View>
+              <View style={styles.balanceInfo}><Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Balance</Text><Text style={[styles.balanceAmount, { color: colors.text }]}>{formatPrice(balance)}</Text></View>
+              <TouchableOpacity style={[styles.payoutButton, !isStripeConnected && styles.payoutButtonSetup]} onPress={handlePayoutPress} activeOpacity={0.8}><Text style={styles.payoutButtonText}>Payout</Text></TouchableOpacity>
+            </View>
+            <Text style={[styles.balanceDescription, { color: colors.textSecondary }]}>
+              {isStripeConnected
+                ? `Currently $${availableAmount.toFixed(2)} is eligible for payout. Funds must remain for ${holdDays} days before becoming available. Payouts under $150 include a 2.99% processing fee.`
+                : 'Connect your bank account to withdraw your earnings. Your credit will be automatically applied to your future orders.'}
+            </Text>
+          </View>
           {isStripeConnected && availableAmount > 0 && (<View style={[styles.availableInfoCard, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5', borderColor: isDark ? '#065F46' : '#A7F3D0' }]}><Text style={[styles.availableInfoText, { color: isDark ? '#6EE7B7' : '#047857' }]}>${availableAmount.toFixed(2)} available for payout</Text></View>)}
           {!isStripeConnected && balance > 0 && (<TouchableOpacity style={[styles.connectPrompt, { backgroundColor: isDark ? '#78350F' : '#FEF3C7', borderColor: isDark ? '#92400E' : '#FDE68A' }]} onPress={() => setShowStripeConnect(true)} activeOpacity={0.8}><AlertCircle size={16} color={isDark ? '#FBBF24' : '#D97706'} /><Text style={[styles.connectPromptText, { color: isDark ? '#FDE68A' : '#92400E' }]}>Connect your bank account to withdraw your earnings</Text><ChevronLeft size={16} color={isDark ? '#FBBF24' : '#D97706'} style={{ transform: [{ rotate: '180deg' }] }} /></TouchableOpacity>)}
-          {transactions.length > 0 && (<View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.text }]}>Transaction History</Text></View>)}
-          {transactions.length > 0 ? transactions.map((txn) => <TransactionItem key={txn.id} transaction={txn} colors={colors} />) : (<View style={styles.emptyContainer}><Wallet size={48} color={colors.textSecondary} /><Text style={[styles.emptyTitle, { color: colors.text }]}>No Transactions Yet</Text><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Your wallet transactions will appear here as you complete deliveries and earn money.</Text></View>)}
+          {transactions.length > 0 && (<View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.text }]}>Transaction History</Text><Text style={[styles.sectionCount, { color: colors.textSecondary }]}>{transactions.length} transactions</Text></View>)}
+          {transactions.length > 0 ? transactions.map((txn) => <TransactionItem key={txn.id} transaction={txn} colors={colors} isDark={isDark} />) : (<View style={styles.emptyContainer}><Wallet size={48} color={colors.textSecondary} /><Text style={[styles.emptyTitle, { color: colors.text }]}>No Transactions Yet</Text><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Your wallet transactions will appear here as you complete deliveries and earn money.</Text></View>)}
         </ScrollView>
       )}
     </View>
@@ -311,9 +326,11 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, textAlign: 'center', fontFamily: fontFamily.bold, fontSize: 18 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingTop: 8, paddingHorizontal: 16 },
-  balanceCard: { borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+  balanceCard: { borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3, marginBottom: 12 },
+  balanceCardTop: { flexDirection: 'row', alignItems: 'center' },
   balanceIconContainer: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   balanceInfo: { flex: 1, marginLeft: 14 },
+  balanceDescription: { fontFamily: fontFamily.regular, fontSize: 13, lineHeight: 18, marginTop: 12 },
   balanceLabel: { fontFamily: fontFamily.regular, fontSize: 13, marginBottom: 2 },
   balanceAmount: { fontFamily: fontFamily.bold, fontSize: 28 },
   payoutButton: { backgroundColor: '#27d20b', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, marginLeft: 10 },
@@ -323,10 +340,12 @@ const styles = StyleSheet.create({
   availableInfoText: { fontFamily: fontFamily.medium, fontSize: 13 },
   connectPrompt: { borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   connectPromptText: { fontFamily: fontFamily.medium, fontSize: 13, flex: 1 },
-  sectionHeader: { marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontFamily: fontFamily.bold, fontSize: 18 },
+  sectionCount: { fontFamily: fontFamily.regular, fontSize: 13 },
   transactionCard: { borderRadius: 12, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3, marginBottom: 10 },
   transactionRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  transactionIconWrap: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 10, marginTop: 2 },
   transactionInfo: { flex: 1 },
   transactionTitle: { fontFamily: fontFamily.regular, fontSize: 14, marginBottom: 4 },
   transactionDate: { fontFamily: fontFamily.regular, fontSize: 12 },
