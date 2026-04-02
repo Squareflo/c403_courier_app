@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BottomNav, type TabId } from '../components/BottomNav';
 import { DashboardScreen } from './DashboardScreen';
 import { DeliveriesScreen } from './DeliveriesScreen';
-import { WalletScreen, StripeConnectScreen } from './WalletScreen';
+import { MyWalletScreen, StripeConnectScreen } from './MyWalletScreen';
 import { PointsScreen } from './PointsScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { MessageDetailScreen } from './MessageDetailScreen';
@@ -406,7 +406,7 @@ export function MainLayout() {
       case 'deliveries':
         return <DeliveriesScreen onDeliveryPress={handleDashboardDeliveryPress} onBack={() => setActiveTab('dashboard')} />;
       case 'wallet':
-        return <WalletScreen onBack={() => setActiveTab('dashboard')} />;
+        return <MyWalletScreen onBack={() => setActiveTab('dashboard')} />;
       case 'points':
         return <PointsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'messages':
