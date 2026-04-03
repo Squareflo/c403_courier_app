@@ -45,7 +45,7 @@ export function TransactionCard({ placeName, amount, type, date, description }: 
   const cardBg = isDark ? colors.card : '#fff';
   const textColor = isDark ? colors.text : '#000';
   const subtextColor = isDark ? colors.text + '99' : '#666';
-  const isEarned = type === 'earned';
+  const isCredit = type === 'earned' || type === 'refund';
 
   return (
     <TouchableOpacity
@@ -68,11 +68,11 @@ export function TransactionCard({ placeName, amount, type, date, description }: 
           </Text>
         </View>
         <View style={styles.right}>
-          <Text style={[styles.amount, { color: isEarned ? '#16a34a' : '#dc2626' }]}>
-            {isEarned ? '+' : '-'}{formatPrice(Math.abs(amount))}
+          <Text style={[styles.amount, { color: isCredit ? '#16a34a' : '#dc2626' }]}>
+            {isCredit ? '+' : '-'}{formatPrice(Math.abs(amount))}
           </Text>
           <Text style={[styles.type, { color: subtextColor }]}>
-            {isEarned ? 'Earned' : 'Redeemed'}
+            {type === 'refund' ? 'Refund' : isCredit ? 'Earned' : 'Redeemed'}
           </Text>
         </View>
       </View>
