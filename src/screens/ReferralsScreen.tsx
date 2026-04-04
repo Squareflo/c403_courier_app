@@ -202,7 +202,7 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
       ? ` in ${courierCity}`
       : '';
 
-  const qrUrl = qrToken ? `https://chowlocal.ca/r/${qrToken}` : '';
+  const qrUrl = qrToken ? `https://effin.ca/r/${qrToken}` : '';
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
