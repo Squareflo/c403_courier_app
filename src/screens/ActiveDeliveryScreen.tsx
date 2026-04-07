@@ -1577,16 +1577,18 @@ export function ActiveDeliveryScreen({
               </Text>
             </View>
 
-            <SlideToAccept
-              onSlideComplete={() => { tapFeedback(); handleReceivedOrder(); }}
-              disabled={updatingStatus}
-              label="Slide To Confirm Received"
-              trackColor="#ffd21f"
-              labelColor="#000"
-              thumbColor="rgba(0,0,0,0.2)"
-              chevronColor="#000"
-              height={56}
-            />
+            <View style={{ marginBottom: 10 }}>
+              <SlideToAccept
+                onSlideComplete={() => { tapFeedback(); handleReceivedOrder(); }}
+                disabled={updatingStatus}
+                label="Slide - Order Received"
+                trackColor="#ffd21f"
+                labelColor="#000"
+                thumbColor="rgba(0,0,0,0.2)"
+                chevronColor="#000"
+                height={56}
+              />
+            </View>
 
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <View style={styles.inlineRow}>
