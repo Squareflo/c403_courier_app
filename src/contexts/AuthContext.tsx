@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { registerAndSavePushToken, deactivatePushTokens } from '../services/pushNotifications';
 
 export interface CourierProfile {
   id: string;
@@ -86,6 +87,8 @@ export function AuthProvider({
             session_rejections: courierResult.data?.session_rejections ?? 0,
           };
           setCourier(merged as CourierProfile);
+          // Register push token for returning sessions
+          registerAndSavePushToken().catch(() => {});
         }
       } catch (err) {
         console.error('Error loading courier from session:', err);
@@ -131,6 +134,7 @@ export function AuthProvider({
   }, []);
 
   const signOut = useCallback(async () => {
+    await deactivatePushTokens();
     await supabase.auth.signOut();
     setCourier(null);
     onSignOut();
