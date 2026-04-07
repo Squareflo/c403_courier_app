@@ -421,7 +421,7 @@ export function ActiveDeliveryScreen({
            created_at,
            place:place_id (
              id, name, address_line_1, city, state,
-             profile_picture_url, photos, rating, average_rating,
+             profile_picture_url, cover_image_url, photos, rating, average_rating,
              total_reviews, phone_number, courier_pickup_instructions, city_id
            ),
            customer:customer_id (
@@ -606,7 +606,7 @@ export function ActiveDeliveryScreen({
     try {
       const { data, error } = await supabase
         .from('delivery_request')
-        .select('id, delivery_number, status, pickup_eta, delivery_distance_km, points_offered, place:place_id(name, profile_picture_url)')
+        .select('id, delivery_number, status, pickup_eta, delivery_distance_km, points_offered, place:place_id(name, profile_picture_url, cover_image_url, photos)')
         .eq('courier_id', courier.id)
         .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
         .neq('id', deliveryRequestId)
@@ -1200,7 +1200,7 @@ export function ActiveDeliveryScreen({
 
   // —— Render place photo or first photo from photos array ——————
 
-  const placePhoto = place?.profile_picture_url || (place?.photos && place.photos[0]) || null;
+  const placePhoto = place?.profile_picture_url || place?.cover_image_url || (place?.photos && place.photos[0]) || null;
 
   return (
     <View style={[styles.screen, { backgroundColor: bg }]}>
@@ -1877,7 +1877,7 @@ export function ActiveDeliveryScreen({
               <View key={del.id} style={styles.flushCardWrapper}>
                 <OfferCard
                   placeName={del.place?.name || `Delivery #${del.delivery_number || del.id?.slice(-6).toUpperCase()}`}
-                  placeImage={del.place?.profile_picture_url || null}
+                  placeImage={del.place?.profile_picture_url || del.place?.cover_image_url || (del.place?.photos && del.place.photos.length > 0 ? del.place.photos[0] : null)}
                   points={del.points_offered || 0}
                   distanceKm={del.delivery_distance_km || 0}
                   pickupEta={del.pickup_eta}

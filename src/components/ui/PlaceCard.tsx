@@ -9,6 +9,7 @@ interface PlaceCardPlace {
   address_line_1?: string | null;
   city?: string | null;
   profile_picture_url?: string | null;
+  cover_image_url?: string | null;
   photos?: string[] | null;
   rating?: number | null;
   average_rating?: number | null;
@@ -27,6 +28,7 @@ export function PlaceCard({ place, onPress, containerStyle, rightAction }: Place
   const { colors, isDark } = useTheme();
 
   const imageSource = place.profile_picture_url
+    || place.cover_image_url
     || (place.photos && place.photos.length > 0 ? place.photos[0] : null);
 
   const address = [place.address_line_1, place.city]

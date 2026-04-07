@@ -113,7 +113,7 @@ export async function getCourierDelivery(courierId: string) {
 export async function getAcceptedDeliveries(courierId: string) {
   const { data, error } = await supabase
     .from('delivery_request')
-    .select('*, place:place_id(id, name, photos, profile_picture_url, address_line_1, city, state, phone_number)')
+    .select('*, place:place_id(id, name, photos, profile_picture_url, cover_image_url, address_line_1, city, state, phone_number)')
     .eq('courier_id', courierId)
     .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
     .order('accepted_by_courier_at', { ascending: false });
@@ -130,7 +130,7 @@ export async function getPlacesByIds(placeIds: string[]) {
   if (!placeIds.length) return [];
   const { data, error } = await supabase
     .from('place')
-    .select('id, name, photos, profile_picture_url, address_line_1, city, state, phone_number')
+    .select('id, name, photos, profile_picture_url, cover_image_url, address_line_1, city, state, phone_number')
     .in('id', placeIds);
   if (error) {
     console.error('[API] getPlacesByIds error:', error);

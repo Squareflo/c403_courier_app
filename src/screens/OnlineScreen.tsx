@@ -304,7 +304,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     try {
       const { data, error } = await supabase
         .from('delivery_request')
-        .select('id, delivery_number, status, pickup_address, dropoff_address, courier_earnings, pickup_eta, drop_off_eta, delivery_distance_km, points_offered, place:place_id(name, profile_picture_url)')
+        .select('id, delivery_number, status, pickup_address, dropoff_address, courier_earnings, pickup_eta, drop_off_eta, delivery_distance_km, points_offered, place:place_id(name, profile_picture_url, cover_image_url, photos)')
         .eq('courier_id', courier.id)
         .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
         .order('accepted_by_courier_at', { ascending: false })
@@ -329,7 +329,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
 
       const { data, error } = await supabase
         .from('delivery_request')
-        .select('id, delivery_number, courier_earnings, points_earned, delivery_distance_km, delivered_at, place:place_id(name, profile_picture_url)')
+        .select('id, delivery_number, courier_earnings, points_earned, delivery_distance_km, delivered_at, place:place_id(name, profile_picture_url, cover_image_url, photos)')
         .eq('courier_id', courier.id)
         .eq('status', 'delivered')
         .gte('delivered_at', todayStart.toISOString())
@@ -641,7 +641,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
                 <OfferCard
                   key={delivery.id}
                   placeName={place?.name || 'Unknown Place'}
-                  placeImage={place?.profile_picture_url || null}
+                  placeImage={place?.profile_picture_url || place?.cover_image_url || (place?.photos && place.photos.length > 0 ? place.photos[0] : null)}
                   points={delivery.points_offered || 0}
                   distanceKm={delivery.delivery_distance_km || 0}
                   pickupEta={delivery.pickup_eta}
@@ -681,8 +681,8 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
                   onPress={() => handleAcceptedPress(delivery.id)}
                   activeOpacity={0.7}
                 >
-                  {delivery.place?.profile_picture_url ? (
-                    <Image source={{ uri: delivery.place.profile_picture_url }} style={styles.completedCardImage} />
+                  {(delivery.place?.profile_picture_url || delivery.place?.cover_image_url || (delivery.place?.photos && delivery.place.photos.length > 0)) ? (
+                    <Image source={{ uri: delivery.place.profile_picture_url || delivery.place.cover_image_url || delivery.place.photos[0] }} style={styles.completedCardImage} />
                   ) : (
                     <View style={[styles.completedCardImage, { backgroundColor: isDark ? '#1a1a1a' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
                       <User size={20} color={textSecColor} />
