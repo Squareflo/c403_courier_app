@@ -1,8 +1,10 @@
 /**
  * Returns a human-readable "time ago" string from a date/timestamp.
  */
-export function timeAgo(dateInput: string | Date): string {
+export function timeAgo(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
   const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
