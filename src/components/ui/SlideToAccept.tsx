@@ -14,9 +14,14 @@ interface SlideToAcceptProps {
   onSlideComplete: () => void;
   height?: number;
   disabled?: boolean;
+  label?: string;
+  trackColor?: string;
+  labelColor?: string;
+  thumbColor?: string;
+  chevronColor?: string;
 }
 
-export default function SlideToAccept({ onSlideComplete, height = 64, disabled = false }: SlideToAcceptProps) {
+export default function SlideToAccept({ onSlideComplete, height = 64, disabled = false, label = 'Slide To Accept', trackColor, labelColor, thumbColor, chevronColor }: SlideToAcceptProps) {
   const THUMB_SIZE = height - 8;
   const BORDER_RADIUS = 10;
   const PADDING = 4;
@@ -85,10 +90,10 @@ export default function SlideToAccept({ onSlideComplete, height = 64, disabled =
 
   return (
     <View
-      style={[styles.track, { height, borderRadius: BORDER_RADIUS, opacity: disabled ? 0.5 : 1 }]}
+      style={[styles.track, { height, borderRadius: BORDER_RADIUS, opacity: disabled ? 0.5 : 1 }, trackColor ? { backgroundColor: trackColor } : undefined]}
       onLayout={onLayout}
     >
-      <Text style={styles.label}>Slide To Accept</Text>
+      <Text style={[styles.label, labelColor ? { color: labelColor } : undefined]}>{label}</Text>
 
       {ready && (
         <Animated.View
@@ -102,11 +107,12 @@ export default function SlideToAccept({ onSlideComplete, height = 64, disabled =
               left: PADDING,
               transform: [{ translateX }],
             },
+            thumbColor ? { backgroundColor: thumbColor } : undefined,
           ]}
         >
-          <ChevronRight size={20} color="#fff" strokeWidth={3} />
-          <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
-          <ChevronRight size={20} color="#fff" strokeWidth={3} style={{ marginLeft: -10 }} />
+          <ChevronRight size={20} color={chevronColor || '#fff'} strokeWidth={3} />
+          <ChevronRight size={20} color={chevronColor || '#fff'} strokeWidth={3} style={{ marginLeft: -10 }} />
+          <ChevronRight size={20} color={chevronColor || '#fff'} strokeWidth={3} style={{ marginLeft: -10 }} />
         </Animated.View>
       )}
     </View>

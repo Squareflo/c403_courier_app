@@ -28,6 +28,7 @@ import { PlaceCard } from '../components/ui/PlaceCard';
 import { OfferCard } from '../components/ui/OfferCard';
 import { OpenOffersSection } from '../components/ui/OpenOffersSection';
 import { useTheme } from '../contexts/ThemeContext';
+import SlideToAccept from '../components/ui/SlideToAccept';
 import { useButtonFeedback } from '../hooks/useButtonFeedback';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -1570,27 +1571,22 @@ export function ActiveDeliveryScreen({
             </View>
 
             <View style={[styles.card, { backgroundColor: cardBg }]}>
-              <View style={styles.inlineRow}>
-                <View style={styles.inlineLeft}>
-                  <Text style={[styles.cardLabel, { color: textSecColor }]}>Ready In</Text>
-                  <Text style={[styles.cardBigValue, { color: textColor }]}>
-                    {minutesUntilPickup !== null ? `${minutesUntilPickup} Min` : '—'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.receivedButton}
-                  onPress={() => { tapFeedback(); handleReceivedOrder(); }}
-                  disabled={updatingStatus}
-                  activeOpacity={0.7}
-                >
-                  {updatingStatus ? (
-                    <ActivityIndicator size="small" color="#000" />
-                  ) : (
-                    <Text style={styles.receivedButtonText}>RECEIVED</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <Text style={[styles.cardLabel, { color: textSecColor }]}>Ready In</Text>
+              <Text style={[styles.cardBigValue, { color: textColor }]}>
+                {minutesUntilPickup !== null ? `${minutesUntilPickup} Min` : '—'}
+              </Text>
             </View>
+
+            <SlideToAccept
+              onSlideComplete={() => { tapFeedback(); handleReceivedOrder(); }}
+              disabled={updatingStatus}
+              label="Slide To Confirm Received"
+              trackColor="#ffd21f"
+              labelColor="#000"
+              thumbColor="rgba(0,0,0,0.2)"
+              chevronColor="#000"
+              height={56}
+            />
 
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <View style={styles.inlineRow}>
