@@ -208,10 +208,10 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
         .limit(10);
       setRecentDeliveries(deliveries || []);
 
-      // Load recent points
+      // Load recent points from ledger (includes both earnings and penalties)
       const { data: points } = await supabase
-        .from('delivery_point')
-        .select('id, points, created_at, delivery_request:delivery_request_id(place:place_id(name, profile_picture_url))')
+        .from('courier_points_ledger')
+        .select('id, points, reason, created_at, delivery_request:delivery_request_id(place:place_id(name, profile_picture_url, cover_image_url, photos))')
         .eq('courier_id', courier.id)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -277,7 +277,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     const place = dr ? (Array.isArray(dr.place) ? dr.place[0] : dr.place) : null;
     return {
       name: place?.name || 'Unknown',
-      image: place?.profile_picture_url || null,
+      image: place?.profile_picture_url || place?.cover_image_url || (place?.photos && place.photos.length > 0 ? place.photos[0] : null),
     };
   };
 
@@ -435,7 +435,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
                         )}
                         <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
                         <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.created_at)}</Text>
-                        <Text style={[styles.recentCardValue, { color: '#27d20b' }]}>+{item.points} pts</Text>
+                        <Text style={[styles.recentCardValue, { color: item.points < 0 ? '#ff3131' : '#27d20b' }]}>{item.points > 0 ? '+' : ''}{item.points} pts</Text>
                       </View>
                     );
                   })}
