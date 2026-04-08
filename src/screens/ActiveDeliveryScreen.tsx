@@ -677,13 +677,19 @@ export function ActiveDeliveryScreen({
   }, [delivery?.pickup_eta]);
 
   useEffect(() => {
-    if (!delivery?.drop_off_eta) return;
-
-    const update = () => setMinutesUntilDropoff(calculateMinutesUntil(delivery.drop_off_eta));
-    update();
-    const interval = setInterval(update, 30000);
-    return () => clearInterval(interval);
-  }, [delivery?.drop_off_eta]);
+    if (delivery?.drop_off_eta) {
+      const update = () => setMinutesUntilDropoff(calculateMinutesUntil(delivery.drop_off_eta));
+      update();
+      const interval = setInterval(update, 30000);
+      return () => clearInterval(interval);
+    }
+    // Fallback: estimate from distance if no drop_off_eta (assume ~30 km/h city driving)
+    if (delivery?.delivery_distance_km && delivery.status === 'en_route') {
+      const distKm = parseFloat(delivery.delivery_distance_km) || 0;
+      const estimatedMin = Math.max(1, Math.round((distKm / 30) * 60));
+      setMinutesUntilDropoff(estimatedMin);
+    }
+  }, [delivery?.drop_off_eta, delivery?.delivery_distance_km, delivery?.status]);
 
   // —— Status update: Arrived at Pickup ——————————————————————————
 
