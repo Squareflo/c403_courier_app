@@ -319,19 +319,6 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Period Selector (only in normal mode) ── */}
-        {!isApplicationMode && (
-          <TouchableOpacity
-            style={styles.periodSelector}
-            onPress={() => setShowPeriodPicker(true)}
-            activeOpacity={0.7}
-            hitSlop={8}
-          >
-            <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{getPeriodLabel(selectedPeriod)}</Text>
-            <ChevronDown size={14} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-
         {/* ── Profile Card (RestaurantCard style — image touches left/top/bottom) ── */}
         <View style={[styles.profileCardOuter, { backgroundColor: colors.card }]}>
           <View style={styles.profileCardInner}>
@@ -373,6 +360,20 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
             {/* ── Slide To Go Online ── */}
             <View style={styles.slideContainer}>
               <SlideToOnline onSlideComplete={handleSlideToOnline} />
+            </View>
+
+            {/* ── My Stats heading + Period selector ── */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>My Stats</Text>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                onPress={() => setShowPeriodPicker(true)}
+                activeOpacity={0.7}
+                hitSlop={8}
+              >
+                <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{getPeriodLabel(selectedPeriod)}</Text>
+                <ChevronDown size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
 
             {/* ── Stats Row (horizontally scrollable) ── */}
