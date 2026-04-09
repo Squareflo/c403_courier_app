@@ -364,7 +364,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
 
             {/* ── My Stats heading + Period selector ── */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 }}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>My Stats</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: fontFamily.regular }]}>My Stats</Text>
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 onPress={() => setShowPeriodPicker(true)}
