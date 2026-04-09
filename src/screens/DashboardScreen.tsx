@@ -412,42 +412,11 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
               </View>
             </ScrollView>
 
-            {recentPoints.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Points</Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalListContent}
-                >
-                  {recentPoints.map((item) => {
-                    const place = getNestedPlaceInfo(item);
-                    return (
-                      <View key={item.id} style={[styles.recentCard, { backgroundColor: colors.card, ...(recentPoints.length === 1 ? { width: SCREEN_WIDTH - 32, maxWidth: SCREEN_WIDTH - 32 } : {}) }]}>
-                        {place.image ? (
-                          <Image source={{ uri: place.image }} style={styles.recentCardImage} />
-                        ) : (
-                          <View style={[styles.recentCardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
-                            <User size={20} color={colors.textMuted} />
-                          </View>
-                        )}
-                        <Text style={[styles.recentCardName, { color: colors.text }]} numberOfLines={1}>{place.name}</Text>
-                        <Text style={[styles.recentCardTime, { color: colors.textSecondary }]}>{timeAgo(item.created_at)}</Text>
-                        <Text style={[styles.recentCardValue, { color: item.points < 0 ? '#ff3131' : '#27d20b' }]}>{item.points > 0 ? '+' : ''}{item.points} pts</Text>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            )}
-
             {/* ── Recent Deliveries Section ── */}
             {recentDeliveries.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Deliveries</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: fontFamily.regular }]}>Recent Deliveries</Text>
                 </View>
                 <ScrollView
                   horizontal
