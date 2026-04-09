@@ -15,11 +15,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 
-type ReferralTab = 'qr-code' | 'current-offer' | 'how-it-works';
+type ReferralTab = 'qr-code' | 'how-it-works';
 
 const TABS: { key: ReferralTab; label: string }[] = [
   { key: 'qr-code', label: 'My Referral Code' },
-  { key: 'current-offer', label: 'Current Offer' },
   { key: 'how-it-works', label: 'How It Works' },
 ];
 
@@ -304,29 +303,6 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
                 </Text>
               </>
             )}
-          </View>
-        )}
-
-        {/* Current Offer Tab */}
-        {activeTab === 'current-offer' && (
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Current Offer for Local Restaurants{locationSuffix}
-            </Text>
-            <View style={styles.bulletList}>
-              <Text style={[styles.bulletItem, { color: colors.textSecondary }]}>
-                {'\u2022'} No commissions for <Text style={{ textDecorationLine: 'line-through', color: colors.textMuted }}>3 months</Text> 6 months
-              </Text>
-              <Text style={[styles.bulletItem, { color: colors.textSecondary }]}>
-                {'\u2022'} Unlimited orders for pickup or delivery
-              </Text>
-              <Text style={[styles.bulletItem, { color: colors.textSecondary }]}>
-                {'\u2022'} Mobile-friendly landing page
-              </Text>
-              <Text style={[styles.bulletItem, { color: colors.textSecondary }]}>
-                {'\u2022'} {referralCommission ? `${referralCommission}` : '$0'} account activation fee
-              </Text>
-            </View>
           </View>
         )}
 
