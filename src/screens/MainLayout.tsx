@@ -452,7 +452,7 @@ export function MainLayout() {
             <ChatScreen chatId={viewingChatId} onBack={() => { setLastReadChatId(viewingChatId); setViewingChatId(null); }} />
           </View>
         )}
-        {!viewingChatId && !viewingMessageId && <BottomNav activeTab={activeTab} onTabPress={handleTabPress} hiddenTabs={hiddenTabs} />}
+        {!viewingChatId && !viewingMessageId && <BottomNav activeTab={activeTab} onTabPress={handleTabPress} hiddenTabs={hiddenTabs} onSignOut={signOut} />}
       </View>
     </SafeAreaProvider>
   );

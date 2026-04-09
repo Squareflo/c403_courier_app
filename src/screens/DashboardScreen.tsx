@@ -307,9 +307,6 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
               {isDark ? <Sun size={22} color={colors.text} /> : <Moon size={22} color={colors.text} />}
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={signOut} hitSlop={8} style={styles.headerButton}>
-            <LogOut size={22} color={colors.text} />
-          </TouchableOpacity>
         </View>
       </View>
 

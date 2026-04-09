@@ -14,6 +14,7 @@ import {
   Coins,
   CreditCard,
   LayoutDashboard,
+  LogOut,
   Menu,
   MessageSquare,
   Settings,
@@ -110,9 +111,10 @@ interface BottomNavProps {
   activeTab: TabId;
   onTabPress: (tab: TabId) => void;
   hiddenTabs?: TabId[];
+  onSignOut?: () => void;
 }
 
-export function BottomNav({ activeTab, onTabPress, hiddenTabs = [] }: BottomNavProps) {
+export function BottomNav({ activeTab, onTabPress, hiddenTabs = [], onSignOut }: BottomNavProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -234,6 +236,23 @@ export function BottomNav({ activeTab, onTabPress, hiddenTabs = [] }: BottomNavP
                 </TouchableOpacity>
               );
             })}
+
+            {/* Sign Out */}
+            {onSignOut && (
+              <TouchableOpacity
+                style={[styles.drawerItem, { backgroundColor: colors.card, marginTop: 16 }]}
+                onPress={() => {
+                  setShowMoreDrawer(false);
+                  onSignOut();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.drawerItemIcon}>
+                  <LogOut size={24} color="#dc2626" />
+                </View>
+                <Text style={[styles.drawerItemLabel, { color: '#dc2626' }]}>Sign Out</Text>
+              </TouchableOpacity>
+            )}
             <View style={{ height: 50 }} />
           </ScrollView>
         </View>
