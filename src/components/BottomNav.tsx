@@ -21,7 +21,6 @@ import {
   Star,
   ThumbsUp,
   Users,
-  UtensilsCrossed,
   Wallet,
   X,
 } from 'lucide-react-native';
@@ -39,7 +38,6 @@ export type TabId =
   | 'reviews'
   | 'referrals'
   | 'points'
-  | 'catering'
   | 'my-account'
   | 'stripe-express';
 
@@ -84,11 +82,6 @@ const ALL_TABS: TabDef[] = [
     id: 'points',
     label: 'Points',
     icon: (color, size) => <Coins size={size} color={color} />,
-  },
-  {
-    id: 'catering',
-    label: 'Catering',
-    icon: (color, size) => <UtensilsCrossed size={size} color={color} />,
   },
   {
     id: 'my-account',

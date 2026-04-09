@@ -27,7 +27,6 @@ import { OpenOfferScreen } from './OpenOfferScreen';
 import { ActiveDeliveryScreen } from './ActiveDeliveryScreen';
 import { ReviewsScreen } from './ReviewsScreen';
 import { ReferralsScreen } from './ReferralsScreen';
-import { CateringScreen } from './CateringScreen';
 import { MyProfileScreen } from './MyProfileScreen';
 import { fontFamily } from '../constants/typography';
 import { supabase } from '../lib/supabase';
@@ -423,8 +422,6 @@ export function MainLayout() {
         return <ReviewsScreen onBack={() => setActiveTab('dashboard')} />;
       case 'referrals':
         return <ReferralsScreen onBack={() => setActiveTab('dashboard')} />;
-      case 'catering':
-        return <CateringScreen onBack={() => setActiveTab('dashboard')} />;
       case 'my-account':
         return <MyProfileScreen onBack={() => setActiveTab('dashboard')} />;
       case 'stripe-express':
