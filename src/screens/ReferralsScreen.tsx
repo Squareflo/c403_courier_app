@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -51,6 +52,9 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
 
   // Referral commission from city plan
   const [referralCommission, setReferralCommission] = useState<string | null>(null);
+  const [activationFeeAmount, setActivationFeeAmount] = useState<string | null>(null);
+
+  const isSalesRep = courier?.roles?.includes('sales_rep') ?? false;
 
   // Fetch courier location
   useEffect(() => {
@@ -102,6 +106,7 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
           const pct = parseFloat(plan.activation_fee_commission_pct || '0');
           const commission = Math.round(fee * (pct / 100) * 100) / 100;
           setReferralCommission(commission > 0 ? `$${commission.toFixed(2)}` : null);
+          setActivationFeeAmount(fee > 0 ? `$${fee.toFixed(0)}` : null);
         }
       } catch (e) {
         console.log('[ReferralsScreen] Error fetching commission:', e);
@@ -201,8 +206,74 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
       ? ` in ${courierCity}`
       : '';
 
+  const locationLabel = courierCity && courierState
+    ? `${courierCity}, ${courierState}`
+    : courierCity || 'your city';
+
   const qrUrl = qrToken ? `https://effin.ca/r/${qrToken}` : '';
 
+  // ── Not a sales rep ──
+  if (!isSalesRep) {
+    return (
+      <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity onPress={onBack} style={styles.headerBackButton}>
+            <ChevronLeft size={26} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Referrals</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Not Authorized */}
+          <View style={[styles.card, { backgroundColor: colors.card, marginBottom: 16 }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Restaurant Referral Program</Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              You are not currently authorized to participate in Chow Local's Restaurant Referral Program for Couriers.
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginTop: 10 }]}>
+              If you're interested in helping us recruit restaurants in {locationLabel}, let us know by reaching out to our team.
+            </Text>
+            <TouchableOpacity
+              style={[styles.qrButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000', marginTop: 16, marginBottom: 0 }]}
+              activeOpacity={0.8}
+              onPress={() => Linking.openURL('mailto:support@chowlocal.com?subject=Sales%20Rep%20Interest')}
+            >
+              <Text style={[styles.qrButtonText, { color: isDark ? '#000000' : '#FFFFFF' }]}>
+                Contact Us
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* How It Works */}
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>How It Works</Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
+              We're always looking for more restaurants and eateries to join our platform. The more restaurants we have, the more delivery opportunities our couriers get.
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
+              Couriers who have experience in sales and who have strong relationships in their local restaurant scene are encouraged to apply to become a Sales Rep.
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
+              As a Sales Rep, you'll receive basic training and earn a commission of {activationFeeAmount || 'the Account Activation Fee'} for every restaurant that signs up by scanning your unique referral QR code.
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
+              The process is simple and the program is completely flexible. Set your own hours and work as much or as little as you like — there are no minimums or quotas.
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Top-performing local Sales Reps get promoted to Sales Managers and can earn a commission of up to 30% of the fees we charge restaurants — recurring revenue for as long as the restaurant stays on the platform.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Sales rep view ──
   return (
     <View style={[styles.container, { backgroundColor: isDark ? colors.background : colors.backgroundTertiary }]}>
       {/* Header */}
