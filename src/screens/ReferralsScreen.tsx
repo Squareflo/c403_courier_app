@@ -249,16 +249,6 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
             </TouchableOpacity>
           </View>
 
-          {/* How It Works */}
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>How It Works</Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
-              We're always looking for more restaurants and eateries to join our platform. The more restaurants we have, the more delivery opportunities our couriers get.
-            </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-              Couriers who have experience in sales and who have strong relationships in their local restaurant scene are encouraged to apply to become a Sales Rep.
-            </Text>
-          </View>
         </ScrollView>
       </View>
     );
