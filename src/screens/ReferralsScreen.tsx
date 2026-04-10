@@ -255,17 +255,8 @@ export function ReferralsScreen({ onBack }: { onBack: () => void }) {
             <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
               We're always looking for more restaurants and eateries to join our platform. The more restaurants we have, the more delivery opportunities our couriers get.
             </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
-              Couriers who have experience in sales and who have strong relationships in their local restaurant scene are encouraged to apply to become a Sales Rep.
-            </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
-              As a Sales Rep, you'll receive basic training and earn a commission of {activationFeeAmount || 'the Account Activation Fee'} for every restaurant that signs up by scanning your unique referral QR code.
-            </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 14 }]}>
-              The process is simple and the program is completely flexible. Set your own hours and work as much or as little as you like — there are no minimums or quotas.
-            </Text>
             <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-              Top-performing local Sales Reps get promoted to Sales Managers and can earn a commission of up to 30% of the fees we charge restaurants — recurring revenue for as long as the restaurant stays on the platform.
+              Couriers who have experience in sales and who have strong relationships in their local restaurant scene are encouraged to apply to become a Sales Rep.
             </Text>
           </View>
         </ScrollView>
