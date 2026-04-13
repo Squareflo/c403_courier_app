@@ -48,7 +48,7 @@ export function StripeConnectScreen({ onBack, onConnected, standalone }: { onBac
   const hasStartedOnboarding = !!courier?.stripe_account_id;
   const isFullyConnected = courier?.stripe_connect_status === 'enabled';
   const WEB_REFRESH_URL = 'https://www.chowlocal.app/CustomerStripeConnect?stripe_refresh=true';
-  const WEB_RETURN_URL = 'https://www.chowlocal.app/CustomerStripeConnect?stripe_return=true';
+  const WEB_RETURN_URL = 'https://www.chowlocal.app/stripe-connect-success';
 
   useEffect(() => { loadAccountDetails(); }, []);
   useEffect(() => {
