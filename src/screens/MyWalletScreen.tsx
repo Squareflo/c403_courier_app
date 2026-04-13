@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, Modal, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, AppState, Linking, Modal, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,12 +51,20 @@ export function StripeConnectScreen({ onBack, onConnected, standalone }: { onBac
   const WEB_RETURN_URL = 'https://www.chowlocal.app/stripe-connect-success';
 
   useEffect(() => { loadAccountDetails(); }, []);
+
+  // Refresh when app returns to foreground (e.g. after Stripe onboarding in browser)
+  const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
-    if (!courier?.stripe_account_id) return;
-    const p = setInterval(async () => { await refreshCourier(); }, 5000);
-    const t = setTimeout(() => { clearInterval(p); }, 30000);
-    return () => { clearInterval(p); clearTimeout(t); };
-  }, [courier?.stripe_account_id]);
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
+        await refreshCourier();
+        await loadAccountDetails();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => { if (!standalone && courier?.stripe_connect_status === 'enabled') onConnected(); }, [courier?.stripe_connect_status]);
 
   const loadAccountDetails = async () => {
@@ -146,7 +154,7 @@ export function StripeConnectScreen({ onBack, onConnected, standalone }: { onBac
                       <View style={[styles.detailRow, { marginTop: 12 }]}>
                         <CreditCard size={18} color={colors.textSecondary} />
                         <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Business Name</Text>
+                          <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Account Display Name</Text>
                           <Text style={[styles.detailValue, { color: colors.text }]}>{accountDetails.business_profile.name}</Text>
                         </View>
                       </View>
