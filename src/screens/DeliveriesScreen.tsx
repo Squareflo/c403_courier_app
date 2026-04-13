@@ -30,7 +30,7 @@ interface DeliveryItem {
   delivery_distance_km: number | null;
   delivered_at: string | null;
   dropoff_address: string | null;
-  place: { name: string; profile_picture_url: string | null } | null;
+  place: { name: string; profile_picture_url: string | null; cover_image_url?: string | null; photos?: string[] | null } | null;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -78,7 +78,7 @@ export function DeliveriesScreen({ onDeliveryPress, onBack }: DeliveriesScreenPr
 
       const { data, error } = await supabase
         .from('delivery_request')
-        .select('id, delivery_number, courier_earnings, points_earned, delivery_distance_km, delivered_at, dropoff_address, place:place_id(name, profile_picture_url)')
+        .select('id, delivery_number, courier_earnings, points_earned, delivery_distance_km, delivered_at, dropoff_address, place:place_id(name, profile_picture_url, cover_image_url, photos)')
         .eq('courier_id', courier.id)
         .eq('status', 'delivered')
         .order('delivered_at', { ascending: false })
@@ -125,8 +125,8 @@ export function DeliveriesScreen({ onDeliveryPress, onBack }: DeliveriesScreenPr
         onPress={() => onDeliveryPress?.(item.id)}
         activeOpacity={0.7}
       >
-        {place?.profile_picture_url ? (
-          <Image source={{ uri: place.profile_picture_url }} style={styles.cardImage} resizeMode="cover" />
+        {(place?.profile_picture_url || place?.cover_image_url || (place?.photos && place.photos.length > 0)) ? (
+          <Image source={{ uri: (place.profile_picture_url || place.cover_image_url || place.photos![0])! }} style={styles.cardImage} resizeMode="cover" />
         ) : (
           <View style={[styles.cardImage, { backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' }]}>
             <User size={24} color={colors.textMuted} />

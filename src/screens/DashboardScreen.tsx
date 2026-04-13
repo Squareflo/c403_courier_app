@@ -201,7 +201,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
       // Load recent deliveries
       const { data: deliveries } = await supabase
         .from('delivery_request')
-        .select('id, courier_earnings, delivered_at, points_earned, place:place_id(name, profile_picture_url)')
+        .select('id, courier_earnings, delivered_at, points_earned, place:place_id(name, profile_picture_url, cover_image_url, photos)')
         .eq('courier_id', courier.id)
         .eq('status', 'delivered')
         .order('delivered_at', { ascending: false })
@@ -268,7 +268,7 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
     const place = Array.isArray(item?.place) ? item.place[0] : item?.place;
     return {
       name: place?.name || 'Unknown',
-      image: place?.profile_picture_url || null,
+      image: place?.profile_picture_url || place?.cover_image_url || (place?.photos && place.photos.length > 0 ? place.photos[0] : null),
     };
   };
 
