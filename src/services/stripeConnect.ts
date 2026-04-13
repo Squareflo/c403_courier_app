@@ -150,11 +150,39 @@ export async function calculateAvailablePayoutAmount(
         .eq('id', walletId)
         .single();
 
-      if (wallet?.country_id) {
+      let countryId = wallet?.country_id;
+
+      // Fallback: look up country via customer -> city -> state_province
+      if (!countryId) {
+        const { data: custData } = await supabase
+          .from('customer')
+          .select('city_id')
+          .eq('id', courierId)
+          .single();
+        if (custData?.city_id) {
+          const { data: cityData } = await supabase
+            .from('city')
+            .select('state_province_id')
+            .eq('id', custData.city_id)
+            .single();
+          if (cityData?.state_province_id) {
+            const { data: spData } = await supabase
+              .from('state_province')
+              .select('country_id')
+              .eq('id', cityData.state_province_id)
+              .single();
+            if (spData?.country_id) {
+              countryId = spData.country_id;
+            }
+          }
+        }
+      }
+
+      if (countryId) {
         const { data: countryData } = await supabase
           .from('country')
           .select('payout_hold_days')
-          .eq('id', wallet.country_id)
+          .eq('id', countryId)
           .single();
 
         if (countryData?.payout_hold_days) {
