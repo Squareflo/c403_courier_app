@@ -435,13 +435,15 @@ export function MyWalletScreen({ onBack }: { onBack?: () => void }) {
                 <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Money</Text>
                 <Text style={[styles.balanceAmount, { color: colors.text }]}>{formatPrice(balance)}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.payoutButton}
-                onPress={(e) => { e.stopPropagation?.(); handlePayoutPress(); }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.payoutButtonText}>Payout</Text>
-              </TouchableOpacity>
+              {availableAmount > 0 && (
+                <TouchableOpacity
+                  style={styles.payoutButton}
+                  onPress={(e) => { e.stopPropagation?.(); handlePayoutPress(); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.payoutButtonText}>Payout</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Text style={[styles.balanceDescription, { color: colors.textSecondary }]}>
               {isStripeConnected
