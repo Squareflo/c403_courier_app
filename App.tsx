@@ -42,6 +42,9 @@ export default function App() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) {
+          // Clear any stale local tokens so the background auto-refresh
+          // doesn't fire against a broken refresh token.
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
           setAppScreen('sign-in');
           return;
         }
