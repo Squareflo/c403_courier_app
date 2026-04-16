@@ -294,47 +294,21 @@ export function MainLayout() {
     setActiveTab('dashboard');
   };
 
-  const handleOfferResolved = useCallback(async (acceptedDeliveryId?: string) => {
+  const handleOfferResolved = useCallback((_acceptedDeliveryId?: string) => {
+    // After accepting an open offer, return to OnlineScreen so the courier
+    // sees the newly accepted delivery listed in the "Accepted" section.
+    // They can tap the accepted card to open ActiveDeliveryScreen.
     setSelectedOffer(null);
-    if (!acceptedDeliveryId || !courier?.id) return;
-    try {
-      const { data: otherDeliveries, error } = await supabase
-        .from('delivery_request')
-        .select('id')
-        .eq('courier_id', courier.id)
-        .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
-        .neq('id', acceptedDeliveryId);
+  }, []);
 
-      if (error) { console.error('[MainLayout] Error checking other deliveries:', error); setActiveDeliveryId(acceptedDeliveryId); return; }
-      const otherCount = otherDeliveries?.length || 0;
-      console.log('[MainLayout] Post-accept routing: other active deliveries =', otherCount);
-      if (otherCount === 0) setActiveDeliveryId(acceptedDeliveryId);
-      else if (otherCount === 1) setActiveDeliveryId(otherDeliveries![0].id);
-    } catch (err) { console.error('[MainLayout] Error in post-accept routing:', err); setActiveDeliveryId(acceptedDeliveryId); }
-  }, [courier?.id]);
-
-  const handleExclusiveResolved = useCallback(async (acceptedDeliveryId?: string) => {
+  const handleExclusiveResolved = useCallback((_acceptedDeliveryId?: string) => {
+    // After accepting/rejecting an exclusive offer, return to OnlineScreen
+    // so the courier sees the newly accepted delivery in the "Accepted" section.
     setForcedExclusiveOffer(null);
     setExclusiveSplashDismissed(false);
     stopExclusiveOfferSound();
-    if (acceptedDeliveryId && courier?.id) {
-      try {
-        const { data: otherDeliveries, error } = await supabase
-          .from('delivery_request')
-          .select('id')
-          .eq('courier_id', courier.id)
-          .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
-          .neq('id', acceptedDeliveryId);
-
-        if (error) { setActiveDeliveryId(acceptedDeliveryId); checkForExclusiveOffer(); return; }
-        const otherCount = otherDeliveries?.length || 0;
-        console.log('[MainLayout] Post-exclusive-accept routing: other active deliveries =', otherCount);
-        if (otherCount === 0) setActiveDeliveryId(acceptedDeliveryId);
-        else if (otherCount === 1) setActiveDeliveryId(otherDeliveries![0].id);
-      } catch (err) { console.error('[MainLayout] Error in exclusive post-accept routing:', err); setActiveDeliveryId(acceptedDeliveryId); }
-    }
     checkForExclusiveOffer();
-  }, [courier?.id, stopExclusiveOfferSound, checkForExclusiveOffer]);
+  }, [stopExclusiveOfferSound, checkForExclusiveOffer]);
 
   const handleOpenExclusiveOffer = () => { tapFeedback(); stopExclusiveOfferSound(); setExclusiveSplashDismissed(true); };
   const handleDashboardDeliveryPress = (deliveryId: string) => { setViewingDeliveryId(deliveryId); };
