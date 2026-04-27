@@ -294,20 +294,24 @@ export function MainLayout() {
     setActiveTab('dashboard');
   };
 
-  const handleOfferResolved = useCallback((_acceptedDeliveryId?: string) => {
-    // After accepting an open offer, return to OnlineScreen so the courier
-    // sees the newly accepted delivery listed in the "Accepted" section.
-    // They can tap the accepted card to open ActiveDeliveryScreen.
+  const handleOfferResolved = useCallback((acceptedDeliveryId?: string) => {
     setSelectedOffer(null);
+    // If a delivery was accepted, go straight to ActiveDeliveryScreen
+    if (acceptedDeliveryId) {
+      setActiveDeliveryId(acceptedDeliveryId);
+    }
   }, []);
 
-  const handleExclusiveResolved = useCallback((_acceptedDeliveryId?: string) => {
-    // After accepting/rejecting an exclusive offer, return to OnlineScreen
-    // so the courier sees the newly accepted delivery in the "Accepted" section.
+  const handleExclusiveResolved = useCallback((acceptedDeliveryId?: string) => {
     setForcedExclusiveOffer(null);
     setExclusiveSplashDismissed(false);
     stopExclusiveOfferSound();
-    checkForExclusiveOffer();
+    // If a delivery was accepted, go straight to ActiveDeliveryScreen
+    if (acceptedDeliveryId) {
+      setActiveDeliveryId(acceptedDeliveryId);
+    } else {
+      checkForExclusiveOffer();
+    }
   }, [stopExclusiveOfferSound, checkForExclusiveOffer]);
 
   const handleOpenExclusiveOffer = () => { tapFeedback(); stopExclusiveOfferSound(); setExclusiveSplashDismissed(true); };
