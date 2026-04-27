@@ -421,7 +421,7 @@ export function ActiveDeliveryScreen({
            created_at,
            place:place_id (
              id, name, address_line_1, city, state,
-             profile_picture_url, cover_image_url, photos, rating, average_rating,
+             profile_picture_url, cover_image_url, photos, average_rating,
              total_reviews, phone_number, courier_pickup_instructions, city_id
            ),
            customer:customer_id (

@@ -81,7 +81,6 @@ interface PlaceData {
   state: string | null;
   profile_picture_url: string | null;
   photos: string[] | null;
-  rating: number | null;
   average_rating: number | null;
   total_reviews: number | null;
   phone_number: string | null;
@@ -207,7 +206,7 @@ export function OpenOfferScreen({
            is_outside_order, accepted_by_couriers, rejected_by_couriers,
            place:place_id (
              id, name, address_line_1, city, state,
-             profile_picture_url, photos, rating, average_rating,
+             profile_picture_url, photos, average_rating,
              total_reviews, phone_number
            )`,
         )
