@@ -1,26 +1,46 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabase';
 
+// expo-notifications is not available in Expo Go (SDK 53+)
+// Guard all usage behind a dynamic import check
+const isExpoGo = Constants.appOwnership === 'expo';
+
+let Notifications: typeof import('expo-notifications') | null = null;
+
+if (!isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+  } catch {
+    console.log('[Push] expo-notifications not available');
+  }
+}
+
 /**
  * Configure notification handler for foreground notifications
  */
-Notifications.setNotificationHandler({
-  handleNotification: async () => {
-    return {
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => {
+      return {
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    },
+  });
+}
 
 /**
  * Register for push notifications and get the Expo Push Token
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (!Notifications) {
+    console.log('[Push] Push notifications not available in Expo Go');
+    return null;
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -125,7 +145,7 @@ export async function registerAndSavePushToken(): Promise<string | null> {
   }
 
   // Configure Android notification channels
-  if (Platform.OS === 'android') {
+  if (Platform.OS === 'android' && Notifications) {
     await Notifications.setNotificationChannelAsync('delivery-offers', {
       name: 'Delivery Offers',
       importance: Notifications.AndroidImportance.MAX,
@@ -142,8 +162,9 @@ export async function registerAndSavePushToken(): Promise<string | null> {
  * Add listener for when user taps on a notification
  */
 export function addNotificationResponseReceivedListener(
-  callback: (response: Notifications.NotificationResponse) => void
-): Notifications.EventSubscription {
+  callback: (response: any) => void
+): { remove: () => void } {
+  if (!Notifications) return { remove: () => {} };
   return Notifications.addNotificationResponseReceivedListener(callback);
 }
 
@@ -151,7 +172,8 @@ export function addNotificationResponseReceivedListener(
  * Add listener for notification received while app is foregrounded
  */
 export function addNotificationReceivedListener(
-  callback: (notification: Notifications.Notification) => void
-): Notifications.EventSubscription {
+  callback: (notification: any) => void
+): { remove: () => void } {
+  if (!Notifications) return { remove: () => {} };
   return Notifications.addNotificationReceivedListener(callback);
 }
