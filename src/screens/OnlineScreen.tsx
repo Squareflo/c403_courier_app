@@ -425,6 +425,23 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     };
   }, [courier?.id]);
 
+  // ── Poll for offers every 15s (safety net — couriers can't pull to refresh while driving) ──
+
+  const offerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!courier?.id) return;
+
+    offerPollRef.current = setInterval(() => {
+      loadOffers();
+      loadAcceptedDeliveries();
+    }, 15000);
+
+    return () => {
+      if (offerPollRef.current) clearInterval(offerPollRef.current);
+    };
+  }, [courier?.id, loadOffers, loadAcceptedDeliveries]);
+
   // ── Realtime subscription for delivery offers ──────────────────────────
 
   useEffect(() => {
