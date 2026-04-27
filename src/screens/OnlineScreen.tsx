@@ -442,11 +442,10 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           table: 'delivery_offer',
         },
         (payload: any) => {
-          console.log('[OnlineScreen] Realtime event:', payload.eventType);
+          console.log('[OnlineScreen] Realtime offer event:', payload.eventType);
 
           if (payload.eventType === 'INSERT' && payload.new.status === 'pending') {
             console.log('[OnlineScreen] New offer detected!');
-            // Play notification sound for new open offers
             if (payload.new.type === 'open') {
               playOpenOfferSound();
             }
@@ -460,6 +459,23 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'delivery_request',
+          filter: `courier_id=eq.${courier.id}`,
+        },
+        (payload: any) => {
+          console.log('[OnlineScreen] Delivery status changed:', payload.new.status);
+          loadAcceptedDeliveries();
+          if (payload.new.status === 'delivered') {
+            loadCompletedDeliveries();
+            loadStats();
+          }
+        }
+      )
       .subscribe((status: string) => {
         console.log('[OnlineScreen] Realtime subscription:', status);
       });
@@ -468,7 +484,7 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       console.log('[OnlineScreen] Cleaning up Realtime subscription');
       subscription.unsubscribe();
     };
-  }, [courier?.id, loadOffers, loadAcceptedDeliveries, playOpenOfferSound]);
+  }, [courier?.id, loadOffers, loadAcceptedDeliveries, loadCompletedDeliveries, loadStats, playOpenOfferSound]);
 
   // ── Pull to refresh ─────────────────────────────────────────────────────
 
@@ -539,7 +555,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
   const textColor = colors.text;
   const textSecColor = colors.textTertiary;
 
-  const profileImage = courier?.profile_picture_url || null;
   const totalOffers = openOffers.length;
 
   if (loading) {
@@ -556,26 +571,20 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
     <View style={[styles.screen, { backgroundColor: bg }]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 8 }]}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: Profile pic + "● Online" + Theme toggle + ZapOff ── */}
-        <View style={styles.header}>
-          {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.headerProfileImage} />
-          ) : (
-            <View style={[styles.headerProfileImage, { backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }]}>
-              <User size={20} color={colors.textMuted} />
+        {/* ── Header (matches DashboardScreen) ── */}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <View style={{ width: 40 }} />
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[styles.headerTitleWrap, { paddingTop: insets.top + 8 }]}>
+              <Text style={[styles.headerTitle, { color: textColor }]}>Online</Text>
             </View>
-          )}
-
-          <View style={styles.headerCenter}>
-            <Text style={[styles.onlineText, { color: textColor }]}>Online</Text>
           </View>
-
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.headerAction}
@@ -631,11 +640,17 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
           </View>
         </ScrollView>
 
-        {/* ── Accepted Deliveries Section (uses OfferCard, same as open offers) ── */}
+        {/* ── Open Offers Section (shared component) ── */}
+        <OpenOffersSection
+          offers={openOffers}
+          onOfferPress={handleOfferPress}
+        />
+
+        {/* ── Active Deliveries Section ── */}
         {acceptedDeliveries.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>Accepted</Text>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>Active Deliveries</Text>
             </View>
             {acceptedDeliveries.map((delivery) => {
               const place = Array.isArray(delivery.place) ? delivery.place[0] : delivery.place;
@@ -655,12 +670,6 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
             })}
           </>
         )}
-
-        {/* ── Open Offers Section (shared component) ── */}
-        <OpenOffersSection
-          offers={openOffers}
-          onOfferPress={handleOfferPress}
-        />
 
         {/* ── Completed Deliveries Today (horizontal slider) ── */}
         {completedDeliveries.length > 0 && (
@@ -811,31 +820,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Header
+  // Header — matches DashboardScreen exactly
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
-  headerProfileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  headerCenter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
+  headerTitleWrap: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    paddingBottom: 12,
   },
-  onlineText: {
+  headerTitle: {
     fontFamily: fontFamily.bold,
     fontSize: 18,
+    textAlign: 'center',
   },
   headerRight: {
     flexDirection: 'row',
