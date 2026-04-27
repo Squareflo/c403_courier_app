@@ -299,6 +299,20 @@ export async function updateCourierLocationInDB(
 
 /** Toggle courier online/offline status, refresh 30-day points and update city when going online */
 export async function updateCourierOnlineStatus(courierId: string, isOnline: boolean) {
+  // Check if courier has active deliveries before allowing go-offline
+  if (!isOnline) {
+    const { data: activeDeliveries } = await supabase
+      .from('delivery_request')
+      .select('id')
+      .eq('courier_id', courierId)
+      .in('status', ['accepted_by_courier', 'arrived_at_pickup', 'en_route', 'arrived_at_dropoff'])
+      .limit(1);
+
+    if (activeDeliveries && activeDeliveries.length > 0) {
+      throw new Error('You have active deliveries. Complete all your deliveries before going offline.');
+    }
+  }
+
   // Check if courier is blocked from going online (3-strike penalty)
   if (isOnline) {
     const { data: courierData } = await supabase

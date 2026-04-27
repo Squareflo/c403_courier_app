@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Modal,
@@ -501,8 +502,9 @@ export function OnlineScreen({ onGoOffline, onOfferPress, onAcceptedDeliveryPres
       await updateCourierOnlineStatus(courier.id, false);
       await refreshCourier();
       onGoOffline();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[OnlineScreen] Error going offline:', err);
+      Alert.alert('Cannot Go Offline', err.message || 'Something went wrong.');
     }
   };
 
