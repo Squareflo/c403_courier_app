@@ -450,6 +450,7 @@ export function OpenOfferScreen({
         body: {
           delivery_request_id: deliveryRequestId,
           new_status: 'accepted_by_courier',
+          courier_id: courier.id,
         },
       });
       if (statusError) {
