@@ -299,6 +299,31 @@ export async function updateCourierLocationInDB(
 
 /** Toggle courier online/offline status, refresh 30-day points and update city when going online */
 export async function updateCourierOnlineStatus(courierId: string, isOnline: boolean) {
+  // Check if courier is blocked from going online (3-strike penalty)
+  if (isOnline) {
+    const { data: courierData } = await supabase
+      .from('courier')
+      .select('forced_offline_until')
+      .eq('id', courierId)
+      .single();
+
+    if (courierData?.forced_offline_until) {
+      const blockedUntil = new Date(courierData.forced_offline_until);
+      if (blockedUntil > new Date()) {
+        const minutesLeft = Math.ceil((blockedUntil.getTime() - Date.now()) / 60000);
+        const hoursLeft = Math.floor(minutesLeft / 60);
+        const mins = minutesLeft % 60;
+        const timeStr = hoursLeft > 0 ? `${hoursLeft}h ${mins}m` : `${mins} minutes`;
+        throw new Error(`You've been temporarily taken offline for declining 3 consecutive delivery offers. You can go online again in ${timeStr}.`);
+      }
+      // Penalty expired — clear it
+      await supabase
+        .from('courier')
+        .update({ forced_offline_until: null })
+        .eq('id', courierId);
+    }
+  }
+
   const { error } = await supabase
     .from('courier')
     .update({

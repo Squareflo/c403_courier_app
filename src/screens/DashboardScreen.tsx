@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Modal,
@@ -255,8 +256,9 @@ export function DashboardScreen({ onWentOnline, onDeliveryPress, applicationData
       await updateCourierOnlineStatus(courier.id, true);
       await refreshCourier();
       onWentOnline?.();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error going online:', err);
+      Alert.alert('Cannot Go Online', err.message || 'An error occurred. Please try again later.');
     } finally {
       setIsGoingOnline(false);
     }

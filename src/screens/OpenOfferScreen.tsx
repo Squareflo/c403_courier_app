@@ -589,6 +589,12 @@ export function OpenOfferScreen({
         } else if (penaltyResponse?.penalty_assessed === false) {
           console.log('[OpenOfferScreen] STEP 4: No penalty assessed:', penaltyResponse?.message);
         }
+
+        // Check if courier was forced offline (3-strike rule)
+        if (penaltyResponse?.forced_offline) {
+          console.log('[OpenOfferScreen] STEP 4: Courier forced offline until:', penaltyResponse.forced_offline_until);
+          await refreshCourier();
+        }
       }
 
       // ====================================================================
