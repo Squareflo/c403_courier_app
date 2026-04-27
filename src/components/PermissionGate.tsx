@@ -10,16 +10,12 @@ import {
   AppStateStatus,
   ActivityIndicator,
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// expo-notifications is not available in Expo Go (SDK 53+)
 const isExpoGo = Constants.appOwnership === 'expo';
-let Notifications: typeof import('expo-notifications') | null = null;
-if (!isExpoGo) {
-  try { Notifications = require('expo-notifications'); } catch { /* noop */ }
-}
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from './ui/Button';
 import { fontFamily } from '../constants/typography';
@@ -46,7 +42,7 @@ export default function PermissionGate({ children }: PermissionGateProps) {
     try {
       // Check notification permission (skip in Expo Go)
       let hasNotifications = true;
-      if (Notifications) {
+      if (!isExpoGo) {
         const { status: notifStatus } = await Notifications.getPermissionsAsync();
         hasNotifications = notifStatus === Notifications.PermissionStatus.GRANTED;
       }
@@ -103,7 +99,7 @@ export default function PermissionGate({ children }: PermissionGateProps) {
   // ── Handle notification allow ───────────────────────────────────────────
 
   const handleNotificationAllow = async () => {
-    if (!Notifications) {
+    if (isExpoGo) {
       // Expo Go — skip notifications, proceed to location
       const { status: locStatus } = await Location.getForegroundPermissionsAsync();
       if (!isMountedRef.current) return;

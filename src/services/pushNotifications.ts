@@ -1,25 +1,14 @@
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabase';
 
-// expo-notifications is not available in Expo Go (SDK 53+)
-// Guard all usage behind a dynamic import check
 const isExpoGo = Constants.appOwnership === 'expo';
-
-let Notifications: typeof import('expo-notifications') | null = null;
-
-if (!isExpoGo) {
-  try {
-    Notifications = require('expo-notifications');
-  } catch {
-    console.log('[Push] expo-notifications not available');
-  }
-}
 
 /**
  * Configure notification handler for foreground notifications
  */
-if (Notifications) {
+if (!isExpoGo) {
   Notifications.setNotificationHandler({
     handleNotification: async () => {
       return {
@@ -36,7 +25,7 @@ if (Notifications) {
  * Register for push notifications and get the Expo Push Token
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (!Notifications) {
+  if (isExpoGo) {
     console.log('[Push] Push notifications not available in Expo Go');
     return null;
   }
@@ -145,7 +134,7 @@ export async function registerAndSavePushToken(): Promise<string | null> {
   }
 
   // Configure Android notification channels
-  if (Platform.OS === 'android' && Notifications) {
+  if (Platform.OS === 'android' && !isExpoGo) {
     await Notifications.setNotificationChannelAsync('delivery-offers', {
       name: 'Delivery Offers',
       importance: Notifications.AndroidImportance.MAX,
@@ -162,9 +151,8 @@ export async function registerAndSavePushToken(): Promise<string | null> {
  * Add listener for when user taps on a notification
  */
 export function addNotificationResponseReceivedListener(
-  callback: (response: any) => void
-): { remove: () => void } {
-  if (!Notifications) return { remove: () => {} };
+  callback: (response: Notifications.NotificationResponse) => void
+): Notifications.EventSubscription {
   return Notifications.addNotificationResponseReceivedListener(callback);
 }
 
@@ -172,8 +160,7 @@ export function addNotificationResponseReceivedListener(
  * Add listener for notification received while app is foregrounded
  */
 export function addNotificationReceivedListener(
-  callback: (notification: any) => void
-): { remove: () => void } {
-  if (!Notifications) return { remove: () => {} };
+  callback: (notification: Notifications.Notification) => void
+): Notifications.EventSubscription {
   return Notifications.addNotificationReceivedListener(callback);
 }
