@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "squareflo",
     "name": "ChowLocal Courier",
     "slug": "chowlocal-courier-app",
     "version": "1.0.0",
@@ -12,10 +13,18 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b16820fb-b084-464e-86a1-d5e0cd34d587"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.chowlocal.courier",
+      "buildNumber": "1",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "ChowLocal Courier needs your location to track deliveries and show you nearby orders.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ChowLocal Courier uses your location to track deliveries even when the app is in the background."
       }
@@ -31,7 +40,9 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -44,6 +55,11 @@
           "locationAlwaysAndWhenInUsePermission": "ChowLocal Courier needs your location to track deliveries."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b16820fb-b084-464e-86a1-d5e0cd34d587"
+      }
+    }
   }
 }
