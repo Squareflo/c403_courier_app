@@ -829,6 +829,19 @@ export function ActiveDeliveryScreen({
         console.error('[ActiveDelivery] Status update error:', statusError);
         setError('Failed to update status. Please try again.');
       } else {
+        // Calculate delivery points
+        try {
+          await supabase.functions.invoke('calculate-delivery-points', {
+            body: {
+              delivery_request_id: deliveryRequestId,
+              delivery_distance_km: delivery.delivery_distance_km || 0,
+              pickup_eta: delivery.pickup_eta,
+              city_id: place?.city_id,
+            },
+          });
+        } catch (pointsErr) {
+          console.warn('[ActiveDelivery] Could not calculate delivery points:', pointsErr);
+        }
         await loadData();
       }
     } catch (err) {
