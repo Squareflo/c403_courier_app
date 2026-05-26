@@ -1797,19 +1797,35 @@ export function ActiveDeliveryScreen({
 
         {/* —— Arrived At Drop-Off + DELIVERED (arrived_at_dropoff only) —— */}
         {delivery.status === 'arrived_at_dropoff' && (() => {
-          const isEarly = delivery?.minutes_early !== null && delivery?.minutes_early !== undefined;
-          const isLate = delivery?.minutes_late !== null && delivery?.minutes_late !== undefined;
-          const minutes = isEarly ? delivery!.minutes_early! : (isLate ? delivery!.minutes_late! : 0);
-          const accentColor = isEarly ? '#9eff1f' : '#ff3131';
-          const bgColor = isEarly ? '#166534' : '#7f1d1d';
-          const labelText = isEarly ? `${minutes} Min Early` : (isLate ? `${minutes} Min Late` : '—');
+          // Calculate early/late from drop_off_eta vs now (or arrived_at_dropoff_at)
+          let isEarly = delivery?.minutes_early !== null && delivery?.minutes_early !== undefined;
+          let isLate = delivery?.minutes_late !== null && delivery?.minutes_late !== undefined;
+          let minutes = isEarly ? delivery!.minutes_early! : (isLate ? delivery!.minutes_late! : 0);
+
+          // If neither is set, compute from drop_off_eta
+          if (!isEarly && !isLate && delivery?.drop_off_eta) {
+            const eta = new Date(delivery.drop_off_eta).getTime();
+            const now = Date.now();
+            const diffMin = Math.round((eta - now) / 60000);
+            if (diffMin >= 0) {
+              isEarly = true;
+              minutes = diffMin;
+            } else {
+              isLate = true;
+              minutes = Math.abs(diffMin);
+            }
+          }
+
+          const accentColor = isLate ? '#ff3131' : '#9eff1f';
+          const bgColor = isLate ? '#7f1d1d' : '#166534';
+          const labelText = isLate ? `LATE` : `EARLY`;
 
           return (
             <View style={[styles.arrivedDropoffCard, { backgroundColor: bgColor }]}>
               <View style={styles.arrivedDropoffContent}>
-                <Text style={styles.arrivedDropoffLabel}>Arrived At Drop-Off</Text>
+                <Text style={styles.arrivedDropoffLabel}>Arrived At Drop-off: {labelText}</Text>
                 <Text style={[styles.arrivedDropoffValue, { color: accentColor }]}>
-                  {labelText}
+                  {minutes} Min {labelText}
                 </Text>
               </View>
               <TouchableOpacity
