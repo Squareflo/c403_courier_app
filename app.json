@@ -32,7 +32,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "newArchEnabled": false,
+      "newArchEnabled": true,
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "permissions": [
