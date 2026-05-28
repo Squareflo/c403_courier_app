@@ -1,4 +1,4 @@
-package com.chowlocal.courier
+package com.chowlocaldriver
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
