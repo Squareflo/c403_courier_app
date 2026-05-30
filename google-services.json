@@ -1,0 +1,219 @@
+{
+  "project_info": {
+    "project_number": "136006348676",
+    "project_id": "chowlocal",
+    "storage_bucket": "chowlocal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136006348676:android:d1410f94a1fd8c630b77d1",
+        "android_client_info": {
+          "package_name": "com.brownvincicode24.chowlocal2app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKKZdPTaUU5MrYgfaRt13w-JEvvKCRERc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136006348676-0l9qiomid7f76q8rqlju414i25e37j4v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.squareflo.chowlocalvendor",
+                "app_store_id": "1572397579"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136006348676:android:e45465b4bb5cd3e10b77d1",
+        "android_client_info": {
+          "package_name": "com.brownvincicode24.chowlocaldriver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKKZdPTaUU5MrYgfaRt13w-JEvvKCRERc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136006348676-0l9qiomid7f76q8rqlju414i25e37j4v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.squareflo.chowlocalvendor",
+                "app_store_id": "1572397579"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136006348676:android:df15ed309eac26d10b77d1",
+        "android_client_info": {
+          "package_name": "com.chowlocal"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136006348676-ukcjlm60s57r5peb9lmhj4rpvf8g53tv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chowlocal",
+            "certificate_hash": "31228e4d8c907e1eb800e9202d3945bba9813083"
+          }
+        },
+        {
+          "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKKZdPTaUU5MrYgfaRt13w-JEvvKCRERc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136006348676-0l9qiomid7f76q8rqlju414i25e37j4v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.squareflo.chowlocalvendor",
+                "app_store_id": "1572397579"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136006348676:android:b4775daa06b3eee80b77d1",
+        "android_client_info": {
+          "package_name": "com.chowlocaldriver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136006348676-mo171dc6fnq9r04avj41513m1ou3g0lr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chowlocaldriver",
+            "certificate_hash": "90fa30594e899262031eeceb39412ab0fefb3a49"
+          }
+        },
+        {
+          "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKKZdPTaUU5MrYgfaRt13w-JEvvKCRERc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136006348676-0l9qiomid7f76q8rqlju414i25e37j4v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.squareflo.chowlocalvendor",
+                "app_store_id": "1572397579"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136006348676:android:8d76e9d5a29ccbbb0b77d1",
+        "android_client_info": {
+          "package_name": "com.chowlocalvendor"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "136006348676-ahogm8j6jvvvusagois73tsml6s4m9sb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chowlocalvendor",
+            "certificate_hash": "09d06da4d34505366d66de68d8215d75963b9e3c"
+          }
+        },
+        {
+          "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKKZdPTaUU5MrYgfaRt13w-JEvvKCRERc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "136006348676-ppttj18fsn7ak5pkqsbhvukb5h05075q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "136006348676-0l9qiomid7f76q8rqlju414i25e37j4v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.squareflo.chowlocalvendor",
+                "app_store_id": "1572397579"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
